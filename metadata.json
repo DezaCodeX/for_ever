@@ -1,0 +1,6 @@
+{
+  "name": "for∞ever♥︎",
+  "description": "A premium romantic couples app for lovers featuring private chat, disappearing snaps, live stories, status highlights, customizable love themes, and love streaks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
