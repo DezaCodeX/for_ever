@@ -143,23 +143,45 @@ fun HeartSyncApp(viewModel: HeartViewModel) {
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                     shape = RoundedCornerShape(20.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(
-                            text = message,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(
-                            onClick = { viewModel.clearAuthError() },
-                            modifier = Modifier.size(24.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(Icons.Default.Close, "Dismiss", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = message,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { viewModel.clearAuthError() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Close, "Dismiss", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        if (message.contains("Security Provider Error") || message.contains("failed") || message.contains("Permission denied") || message.contains("not configured")) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    viewModel.toggleOfflineSandboxMode(true)
+                                    viewModel.clearAuthError()
+                                    viewModel.navigateTo(AppScreen.WELCOME)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4B6E)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.CloudOff, contentDescription = "Offline Mode", tint = Color.White)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Bypass online & use Local Sandbox Mode 💡", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -489,7 +511,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f), contentColor = Color(0xFF1E293B)),
                     border = BorderStroke(1.dp, Color(0xFFE9D5FF))
                 ) {
                     Column(
@@ -1924,7 +1946,7 @@ fun PairingScreen(viewModel: HeartViewModel, user: User?) {
             // Share Invitation Code box
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                 border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
                 shape = RoundedCornerShape(20.dp)
             ) {
@@ -2331,7 +2353,7 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .shadow(2.dp, RoundedCornerShape(16.dp)),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                             border = BorderStroke(1.dp, Color(0xFFFFF0F3)),
                             shape = RoundedCornerShape(16.dp)
                         ) {
@@ -2541,7 +2563,7 @@ fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                 border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
                 shape = RoundedCornerShape(24.dp)
             ) {
@@ -2636,7 +2658,7 @@ fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory
                     modifier = Modifier
                         .fillMaxWidth()
                         .shadow(2.dp, RoundedCornerShape(24.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                     border = BorderStroke(1.dp, Color(0xFFFFF0F3)),
                     shape = RoundedCornerShape(24.dp)
                 ) {
@@ -2750,7 +2772,7 @@ fun CallsView(viewModel: HeartViewModel, user: User, state: String, type: String
                     modifier = Modifier
                         .fillMaxWidth()
                         .shadow(6.dp, RoundedCornerShape(28.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                     border = BorderStroke(1.dp, Color(0xFFF3E8FF)),
                     shape = RoundedCornerShape(28.dp)
                 ) {
@@ -3252,7 +3274,7 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                 border = BorderStroke(1.dp, Color(0xFFFFF0F3)),
                 shape = RoundedCornerShape(24.dp)
             ) {
@@ -3336,7 +3358,7 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                 border = BorderStroke(1.dp, Color(0xFFFFF0F3)),
                 shape = RoundedCornerShape(24.dp)
             ) {
@@ -3382,7 +3404,7 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
                 border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
                 shape = RoundedCornerShape(24.dp)
             ) {

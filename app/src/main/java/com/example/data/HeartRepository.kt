@@ -9,8 +9,77 @@ import kotlin.random.Random
 class HeartRepository(private val dao: HeartDao) {
 
     // Fetch env values injected by the platform from user secrets
-    val supabaseUrl: String = BuildConfig.SUPABASE_URL
+    val rawSupabaseUrl: String = BuildConfig.SUPABASE_URL
+    val supabaseUrl: String = sanitizeSupabaseUrl(rawSupabaseUrl)
     val supabaseAnonKey: String = BuildConfig.SUPABASE_ANON_KEY
+
+    private fun sanitizeSupabaseUrl(input: String): String {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed
+        }
+
+        // 1. Try format like: postgresql://postgres.PROJECT_REF:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+        val usernamePoolerRegex = Regex("""postgres\.([a-zA-Z0-9\-]{10,40})""")
+        val poolerMatch = usernamePoolerRegex.find(trimmed)
+        if (poolerMatch != null) {
+            val ref = poolerMatch.groupValues[1]
+            return "https://$ref.supabase.co"
+        }
+
+        // 2. Try to find standard host formats ending in .supabase.co or .supabase.com
+        // e.g. postgresql://postgres:password@db.lvwjzdlnqwpoxyzabcde.supabase.co:5432/postgres
+        // matches lvwjzdlnqwpoxyzabcde.supabase
+        val hostRegex = Regex("""([a-zA-Z0-9\-]{10,40})\.supabase""")
+        val hostMatches = hostRegex.findAll(trimmed)
+        for (match in hostMatches) {
+            val ref = match.groupValues[1]
+            if (ref != "pooler" && ref != "db") {
+                return "https://$ref.supabase.co"
+            }
+        }
+
+        // 3. Fallback: Parse into parts by delimiter to search for a likely 20-character alphanumeric project ref
+        val parts = trimmed.split(Regex("""[/@:\.]"""))
+        for (part in parts) {
+            val partTrimmed = part.trim()
+            if (partTrimmed.length == 20 && partTrimmed.all { it.isLowerCase() || it.isDigit() }) {
+                return "https://$partTrimmed.supabase.co"
+            }
+        }
+
+        // 4. Try 15..25 character alphanumeric (excluding known system keywords)
+        for (part in parts) {
+            val partTrimmed = part.trim()
+            if (partTrimmed.length in 15..25 && partTrimmed.all { it.isLowerCase() || it.isDigit() } &&
+                partTrimmed != "postgresql" && partTrimmed != "postgres" && partTrimmed != "supabase") {
+                return "https://$partTrimmed.supabase.co"
+            }
+        }
+
+        // 5. Hard sanitization replace of protocol
+        if (trimmed.startsWith("postgresql://")) {
+            val hostPart = if (trimmed.contains("@")) {
+                trimmed.substringAfter("@")
+            } else {
+                trimmed.substringAfter("postgresql://")
+            }
+            val cleanHost = hostPart.substringBefore(":").substringBefore("/")
+            val finalHost = if (cleanHost.startsWith("db.")) cleanHost.substringAfter("db.") else cleanHost
+            return "https://$finalHost"
+        } else if (trimmed.startsWith("postgres://")) {
+            val hostPart = if (trimmed.contains("@")) {
+                trimmed.substringAfter("@")
+            } else {
+                trimmed.substringAfter("postgres://")
+            }
+            val cleanHost = hostPart.substringBefore(":").substringBefore("/")
+            val finalHost = if (cleanHost.startsWith("db.")) cleanHost.substringAfter("db.") else cleanHost
+            return "https://$finalHost"
+        }
+
+        return trimmed
+    }
 
     // Determine the active connection status safely
     fun isSupabaseConnected(): Boolean {

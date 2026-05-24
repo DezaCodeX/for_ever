@@ -43,7 +43,16 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     private val _stories = MutableStateFlow<List<CoupleStory>>(emptyList())
     val stories: StateFlow<List<CoupleStory>> = _stories.asStateFlow()
 
-    val isSupabaseConnected = repository.isSupabaseConnected()
+    private val _forceOfflineMode = MutableStateFlow(false)
+    val forceOfflineMode = _forceOfflineMode.asStateFlow()
+
+    fun toggleOfflineSandboxMode(enable: Boolean) {
+        _forceOfflineMode.value = enable
+    }
+
+    val isSupabaseConnected: Boolean
+        get() = repository.isSupabaseConnected() && !_forceOfflineMode.value
+
     val supabaseUrl = repository.supabaseUrl
 
     // ACTIVE DRAWING/VIEW VIEW STATE
@@ -105,17 +114,13 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 val dbUser = database.heartDao().getUserByEmail(savedEmail)
                 if (dbUser != null) {
                     _currentUser.value = dbUser
-                    if (dbUser.connectedPartnerEmail == null) {
-                        _currentScreen.value = AppScreen.PAIRING
-                    } else {
-                        startCoupleDataSync()
-                        _currentScreen.value = AppScreen.MAIN
-                    }
+                    startCoupleDataSync()
+                    _currentScreen.value = AppScreen.MAIN
                     return@launch
                 }
             }
-            // Direct to onboarding if first launch, otherwise welcome
-            _currentScreen.value = AppScreen.ONBOARDING
+            // Direct to welcome (the login or signup landing page)
+            _currentScreen.value = AppScreen.WELCOME
         }
     }
 
@@ -184,20 +189,94 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     fun handleNormalLogin(email: String, pas: String) {
         viewModelScope.launch {
             _authError.value = null
-            val user = repository.loginUser(email, pas)
-            if (user != null) {
-                if (!user.isOtpVerified) {
-                    tempPhoneVerifiedEmail = user.email
+            
+            var isLoginOk = false
+            var errorMsg = ""
+            var metadataUsername = ""
+            var metadataPhone = ""
+            var metadataAge = 0
+            var metadataGender = ""
+
+            // 1. Try to authenticate via Supabase if active
+            if (isSupabaseConnected) {
+                val supabaseRes = SupabaseHelper.loginUser(
+                    url = repository.supabaseUrl,
+                    anonKey = repository.supabaseAnonKey,
+                    email = email,
+                    passwordHash = pas
+                )
+                if (supabaseRes.isSuccess) {
+                    isLoginOk = true
+                    // Extract user metadata in case we need to rebuild local profile
+                    val retJson = supabaseRes.getOrNull()
+                    val userObj = retJson?.optJSONObject("user")
+                    val metadata = userObj?.optJSONObject("user_metadata")
+                    metadataUsername = metadata?.optString("username", "HeartSync User") ?: "HeartSync User"
+                    metadataPhone = metadata?.optString("phone", "") ?: ""
+                    metadataAge = metadata?.optInt("age", 25) ?: 25
+                    metadataGender = metadata?.optString("gender", "Female") ?: "Female"
+                } else {
+                    errorMsg = supabaseRes.exceptionOrNull()?.message ?: "Login failed"
+                }
+            } else {
+                // Offline fallback login validation to local Room
+                val localUser = repository.loginUser(email, pas)
+                if (localUser != null) {
+                    isLoginOk = true
+                } else {
+                    errorMsg = "Invalid local credentials. Please register or verify account details."
+                }
+            }
+
+            if (isLoginOk) {
+                // Fetch or Create local user row matching logged-in user
+                var localUser = repository.getUserFlow(email).first()
+                if (localUser == null) {
+                    // Reconstruct from Supabase details or default
+                    localUser = repository.registerUser(
+                        email = email,
+                        username = metadataUsername.ifEmpty { "HeartSync User" },
+                        passwordHash = pas,
+                        phone = metadataPhone,
+                        isGoogleUser = false,
+                        age = metadataAge,
+                        gender = metadataGender
+                    )
+                }
+
+                // If logged in via active Supabase account, bypass local verification checks since Supabase verified it
+                if (isSupabaseConnected) {
+                    localUser = localUser.copy(isOtpVerified = true)
+                    repository.updateUser(localUser)
+                }
+
+                if (!localUser.isOtpVerified) {
+                    tempPhoneVerifiedEmail = localUser.email
                     _currentScreen.value = AppScreen.OTP_VERIFY
                     _authError.value = "Your account requires confirmation. Please enter verification PIN OTP (e.g. 2212 or 1234) 🔑"
                     return@launch
                 }
-                
-                _currentUser.value = user
-                saveSessionEmail(user.email)
-                
+
+                _currentUser.value = localUser
+                saveSessionEmail(localUser.email)
+
+                // Sync data to Supabase database too
+                if (isSupabaseConnected) {
+                    SupabaseHelper.storeUserDataInDatabase(
+                        url = repository.supabaseUrl,
+                        anonKey = repository.supabaseAnonKey,
+                        email = localUser.email,
+                        username = localUser.username,
+                        phone = localUser.phone,
+                        age = localUser.age,
+                        gender = localUser.gender,
+                        inviteCode = localUser.inviteCode,
+                        isVerified = true
+                    )
+                }
+
                 // Route to appropriate screen (directly with MAIN as requested)
-                if (user.email == "dezacodex@gmail.com") {
+                if (localUser.email == "dezacodex@gmail.com") {
                     _currentScreen.value = AppScreen.ADMIN
                     loadAdminUsers()
                 } else {
@@ -205,7 +284,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                     _currentScreen.value = AppScreen.MAIN
                 }
             } else {
-                _authError.value = "Invalid credentials. If admin, use dezacodex@gmail.com / Mohan2212@"
+                _authError.value = errorMsg
             }
         }
     }
@@ -217,7 +296,8 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 _authError.value = "Please fill in all details"
                 return@launch
             }
-            // Register user in the database
+
+            // Always write locally to our Room database so the app functions seamlessly
             val newUser = repository.registerUser(
                 email = email,
                 username = name,
@@ -230,17 +310,73 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             _currentUser.value = newUser
             saveSessionEmail(newUser.email)
             tempPhoneVerifiedEmail = newUser.email
-            
-            // Go to OTP verification screen for account confirmation
-            _currentScreen.value = AppScreen.OTP_VERIFY
-            _authError.value = "Sanctuary account designed successfully! Standard safety OTP '2212' or '1234' is required to confirm your account 🔑🌸"
+
+            // 2. Perform Supabase Sign up which dispatches a REAL email with verification OTP!
+            if (isSupabaseConnected) {
+                val result = SupabaseHelper.signUpUser(
+                    url = repository.supabaseUrl,
+                    anonKey = repository.supabaseAnonKey,
+                    email = email,
+                    passwordHash = pas,
+                    username = name,
+                    phone = phone,
+                    age = age,
+                    gender = gender
+                )
+                if (result.isSuccess) {
+                    // Try to save profile metadata to db tables straight away
+                    SupabaseHelper.storeUserDataInDatabase(
+                        url = repository.supabaseUrl,
+                        anonKey = repository.supabaseAnonKey,
+                        email = email,
+                        username = name,
+                        phone = phone,
+                        age = age,
+                        gender = gender,
+                        inviteCode = newUser.inviteCode,
+                        isVerified = false
+                    )
+
+                    _currentScreen.value = AppScreen.OTP_VERIFY
+                    _authError.value = "A real verification PIN code has been dispatched to $email! Please verify 🔑✉️"
+                } else {
+                    val exMsg = result.exceptionOrNull()?.message ?: "Supabase registration failed"
+                    _authError.value = "Security Provider Error: $exMsg ⚠️"
+                }
+            } else {
+                // If Supabase is not connected yet, fall back to offline simulation
+                _currentScreen.value = AppScreen.OTP_VERIFY
+                _authError.value = "Offline secure sandbox registered successfully! Standard safety OTP '2212' or '1234' is required to confirm your account 🔑🌸"
+            }
         }
     }
 
     fun submitOtpCode(code: String) {
         viewModelScope.launch {
-            if (code == "2212" || code == "1234") { // Developer testing codes
-                val email = tempPhoneVerifiedEmail.ifEmpty { _currentUser.value?.email ?: "" }
+            _authError.value = null
+            val email = tempPhoneVerifiedEmail.ifEmpty { _currentUser.value?.email ?: "" }
+            
+            var isVerifiedSuccessfully = false
+            var errorDetails = ""
+
+            // Accept standard testing bypasses OR perform real verification against Supabase Auth API
+            if (code == "2212" || code == "1234") {
+                isVerifiedSuccessfully = true
+            } else if (isSupabaseConnected) {
+                val verifyRes = SupabaseHelper.verifyOtp(
+                    url = repository.supabaseUrl,
+                    anonKey = repository.supabaseAnonKey,
+                    email = email,
+                    otpToken = code
+                )
+                if (verifyRes.isSuccess) {
+                    isVerifiedSuccessfully = true
+                } else {
+                    errorDetails = verifyRes.exceptionOrNull()?.message ?: "OTP code is incorrect"
+                }
+            }
+
+            if (isVerifiedSuccessfully) {
                 val user = repository.getUserFlow(email).first()
                 if (user != null) {
                     val updated = user.copy(isOtpVerified = true)
@@ -248,12 +384,33 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                     _currentUser.value = updated
                     saveSessionEmail(updated.email)
                     
+                    // Synchronize and upsert user row inside Supabase public schema target tables
+                    if (isSupabaseConnected) {
+                        SupabaseHelper.storeUserDataInDatabase(
+                            url = repository.supabaseUrl,
+                            anonKey = repository.supabaseAnonKey,
+                            email = user.email,
+                            username = user.username,
+                            phone = user.phone,
+                            age = user.age,
+                            gender = user.gender,
+                            inviteCode = user.inviteCode,
+                            isVerified = true
+                        )
+                    }
+
                     startCoupleDataSync()
                     _currentScreen.value = AppScreen.MAIN
                     _authError.value = "Sanctuary account confirmed! Welcome home! 🌸"
+                } else {
+                    _authError.value = "Error retrieving local account. Please register again."
                 }
             } else {
-                _authError.value = "Incorrect OTP. Try entering '2212' or '1234' for simulator."
+                if (isSupabaseConnected) {
+                    _authError.value = "Verification failed: $errorDetails ⚠️ Please verify the code in your email."
+                } else {
+                    _authError.value = "Incorrect OTP. Try entering '2212' or '1234' for simulator."
+                }
             }
         }
     }
