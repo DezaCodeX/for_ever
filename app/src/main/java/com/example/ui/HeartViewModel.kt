@@ -108,7 +108,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             delay(2200) // Beautiful splash visual showcase delay
             
             // Check if there is an active persistent logged-in user
-            val legacy = repository.profileFlow.first()
+            val legacy = database.heartDao().getProfileDirect()
             val savedEmail = legacy?.loggedInUserEmail ?: ""
             if (savedEmail.isNotEmpty()) {
                 val dbUser = database.heartDao().getUserByEmail(savedEmail)
@@ -163,7 +163,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     // -------------------------------------------------------------
     fun saveSessionEmail(email: String) {
         viewModelScope.launch {
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(loggedInUserEmail = email))
         }
     }
@@ -230,7 +230,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
 
             if (isLoginOk) {
                 // Fetch or Create local user row matching logged-in user
-                var localUser = repository.getUserFlow(email).first()
+                var localUser = database.heartDao().getUserByEmail(email)
                 if (localUser == null) {
                     // Reconstruct from Supabase details or default
                     localUser = repository.registerUser(
@@ -377,7 +377,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (isVerifiedSuccessfully) {
-                val user = repository.getUserFlow(email).first()
+                val user = database.heartDao().getUserByEmail(email)
                 if (user != null) {
                     val updated = user.copy(isOtpVerified = true)
                     repository.updateUser(updated)
@@ -418,7 +418,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     // Interactive Forgot Password Flow with OTP & Password Updating
     fun startForgotPasswordReset(email: String) {
         viewModelScope.launch {
-            val user = repository.getUserFlow(email).first()
+            val user = database.heartDao().getUserByEmail(email)
             if (user == null) {
                 _authError.value = "No registered account found with email ID: $email"
                 return@launch
@@ -445,7 +445,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             val email = tempForgotEmail
-            val user = repository.getUserFlow(email).first()
+            val user = database.heartDao().getUserByEmail(email)
             if (user != null) {
                 val updated = user.copy(passwordHash = newPass, isOtpVerified = true)
                 repository.updateUser(updated)
@@ -482,7 +482,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             val linked = repository.linkCouple(self.email, code)
             if (linked) {
                 // Refresh self session
-                val updatedSelf = repository.getUserFlow(self.email).first()
+                val updatedSelf = database.heartDao().getUserByEmail(self.email) ?: self
                 _currentUser.value = updatedSelf
                 _pairingCelebrationPartnerName.value = partnerUser?.username ?: "Your Soulmate"
                 startCoupleDataSync()
@@ -497,7 +497,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val self = _currentUser.value ?: return@launch
             repository.removeConnection(self.email)
-            val updatedSelf = repository.getUserFlow(self.email).first()
+            val updatedSelf = database.heartDao().getUserByEmail(self.email) ?: self
             _currentUser.value = updatedSelf
             _messages.value = emptyList()
             _snaps.value = emptyList()
@@ -513,7 +513,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         viewModelScope.launch {
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(loggedInUserEmail = ""))
             _currentUser.value = null
             _authError.value = null
@@ -541,7 +541,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             )
             
             // Increment streaks count / score dynamically
-            val updatedSelf = repository.getUserFlow(user.email).first()
+            val updatedSelf = database.heartDao().getUserByEmail(user.email) ?: user
             _currentUser.value = updatedSelf
             
             // Simulate partner responses
@@ -593,7 +593,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 receiverEmail = partnerEmail
             )
             // Restore score
-            val updatedSelf = repository.getUserFlow(user.email).first()
+            val updatedSelf = database.heartDao().getUserByEmail(user.email) ?: user
             _currentUser.value = updatedSelf
 
             // Partner simulator returns snap
@@ -681,7 +681,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 imageType = category,
                 senderEmail = user.email
             )
-            val updatedSelf = repository.getUserFlow(user.email).first()
+            val updatedSelf = database.heartDao().getUserByEmail(user.email) ?: user
             _currentUser.value = updatedSelf
         }
     }
@@ -712,7 +712,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             _currentUser.value = u
 
             // Update legacy LoversProfile
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(
                 legacy.copy(
                     myName = myNewName,
@@ -731,7 +731,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             _currentUser.value = u
 
             // Update legacy LoversProfile theme
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(currentTheme = newTheme))
         }
     }
@@ -744,7 +744,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             _currentUser.value = u
 
             // Also update legacy LoversProfile
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(avatarUrl = url))
         }
     }
@@ -791,7 +791,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             // Link them together!
             val linked = repository.linkCouple(self.email, partnerUser.inviteCode)
             if (linked) {
-                val updatedSelf = repository.getUserFlow(self.email).first()
+                val updatedSelf = database.heartDao().getUserByEmail(self.email) ?: self
                 _currentUser.value = updatedSelf
                 _pairingCelebrationPartnerName.value = partnerUser.username
                 startCoupleDataSync()
@@ -804,7 +804,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateStatusText(status: String) {
         viewModelScope.launch {
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(statusText = status))
 
             val self = _currentUser.value
@@ -826,7 +826,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         vibration: String
     ) {
         viewModelScope.launch {
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             val updated = legacy.copy(
                 notificationTone = notificationTone,
                 callRingtone = callRingtone,
@@ -840,7 +840,7 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateVoiceWallpaper(wallpaper: String) {
         viewModelScope.launch {
-            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(voiceCallWallpaper = wallpaper))
             _authError.value = "Voice call background updated to: $wallpaper 🌅"
         }
