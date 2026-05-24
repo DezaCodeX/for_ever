@@ -174,8 +174,6 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             if (user.email == "dezacodex@gmail.com") {
                 _currentScreen.value = AppScreen.ADMIN
                 loadAdminUsers()
-            } else if (user.connectedPartnerEmail == null) {
-                _currentScreen.value = AppScreen.PAIRING
             } else {
                 startCoupleDataSync()
                 _currentScreen.value = AppScreen.MAIN
@@ -188,16 +186,20 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             _authError.value = null
             val user = repository.loginUser(email, pas)
             if (user != null) {
-                _currentUser.value = user
+                if (!user.isOtpVerified) {
+                    tempPhoneVerifiedEmail = user.email
+                    _currentScreen.value = AppScreen.OTP_VERIFY
+                    _authError.value = "Your account requires confirmation. Please enter verification PIN OTP (e.g. 2212 or 1234) 🔑"
+                    return@launch
+                }
                 
+                _currentUser.value = user
                 saveSessionEmail(user.email)
                 
-                // Route to appropriate screen
+                // Route to appropriate screen (directly with MAIN as requested)
                 if (user.email == "dezacodex@gmail.com") {
                     _currentScreen.value = AppScreen.ADMIN
                     loadAdminUsers()
-                } else if (user.connectedPartnerEmail == null) {
-                    _currentScreen.value = AppScreen.PAIRING
                 } else {
                     startCoupleDataSync()
                     _currentScreen.value = AppScreen.MAIN
@@ -227,15 +229,11 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             )
             _currentUser.value = newUser
             saveSessionEmail(newUser.email)
+            tempPhoneVerifiedEmail = newUser.email
             
-            // Go directly to Dashboard / Pairing
-            if (newUser.email == "dezacodex@gmail.com") {
-                _currentScreen.value = AppScreen.ADMIN
-                loadAdminUsers()
-            } else {
-                _currentScreen.value = AppScreen.PAIRING
-            }
-            _authError.value = "Sanctuary account designed successfully! Welcome aboard 🌸"
+            // Go to OTP verification screen for account confirmation
+            _currentScreen.value = AppScreen.OTP_VERIFY
+            _authError.value = "Sanctuary account designed successfully! Standard safety OTP '2212' or '1234' is required to confirm your account 🔑🌸"
         }
     }
 
@@ -250,12 +248,9 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                     _currentUser.value = updated
                     saveSessionEmail(updated.email)
                     
-                    if (updated.connectedPartnerEmail == null) {
-                        _currentScreen.value = AppScreen.PAIRING
-                    } else {
-                        startCoupleDataSync()
-                        _currentScreen.value = AppScreen.MAIN
-                    }
+                    startCoupleDataSync()
+                    _currentScreen.value = AppScreen.MAIN
+                    _authError.value = "Sanctuary account confirmed! Welcome home! 🌸"
                 }
             } else {
                 _authError.value = "Incorrect OTP. Try entering '2212' or '1234' for simulator."
@@ -303,12 +298,8 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 _forgotPasswordPhase.value = 1 // Reset
                 _authError.value = "Password recovered successfully! You are now logged in securely."
                 
-                if (updated.connectedPartnerEmail == null) {
-                    _currentScreen.value = AppScreen.PAIRING
-                } else {
-                    startCoupleDataSync()
-                    _currentScreen.value = AppScreen.MAIN
-                }
+                startCoupleDataSync()
+                _currentScreen.value = AppScreen.MAIN
             }
         }
     }

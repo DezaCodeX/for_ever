@@ -1163,6 +1163,23 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
     var code by remember { mutableStateOf("") }
     var timerCount by remember { mutableStateOf(30) }
 
+    val isDark = isSystemInDarkTheme()
+    val cardBg = if (isDark) Color(0xFF1E1B4B).copy(alpha = 0.95f) else Color.White.copy(alpha = 0.9f)
+    val cardBorder = if (isDark) Color(0xFF6D28D9) else Color(0xFFE9D5FF)
+    val textPrimary = if (isDark) Color.White else Color(0xFF5B21B6)
+    val textTitle = if (isDark) Color(0xFFC084FC) else Color(0xFF7E22CE)
+    val textSecondary = if (isDark) Color(0xFFDDD6FE) else Color(0xFF6B21A8).copy(alpha = 0.75f)
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = if (isDark) Color.White else Color(0xFF1E1B4B),
+        unfocusedTextColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF1E1B4B),
+        focusedLabelColor = Color(0xFFC084FC),
+        unfocusedLabelColor = if (isDark) Color(0xFFD8B4FE).copy(alpha = 0.7f) else Color(0xFF6B21A8).copy(alpha = 0.7f),
+        focusedBorderColor = Color(0xFFC084FC),
+        unfocusedBorderColor = if (isDark) Color(0xFF7C3AED) else Color(0xFFD8B4FE),
+        focusedPlaceholderColor = if (isDark) Color(0xFF94A3B8) else Color.Gray,
+        unfocusedPlaceholderColor = if (isDark) Color(0xFF64748B) else Color.Gray
+    )
+
     LaunchedEffect(Unit) {
         while (timerCount > 0) {
             delay(1000)
@@ -1182,8 +1199,8 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-                border = BorderStroke(1.dp, Color(0xFFE9D5FF))
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.dp, cardBorder)
             ) {
                 Column(
                     modifier = Modifier
@@ -1197,7 +1214,7 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                         text = "Two-Factor security verification",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF5B21B6),
+                        color = textTitle,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1205,7 +1222,7 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                         text = "We sent a simulated security PIN code to your mobile device.\nEnter verification code to activate encryption.",
                         textAlign = TextAlign.Center,
                         fontSize = 13.sp,
-                        color = Color(0xFF6B21A8).copy(alpha = 0.8f),
+                        color = textSecondary,
                         lineHeight = 18.sp
                     )
 
@@ -1217,13 +1234,12 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                         placeholder = { Text("Enter OTP (e.g. 2212)") },
                         modifier = Modifier.width(220.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF9333EA),
-                            focusedLabelColor = Color(0xFF9333EA),
-                            unfocusedBorderColor = Color(0xFFD8B4FE)
-                        ),
+                        colors = textFieldColors,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        textStyle = androidx.compose.ui.text.TextStyle(textAlign = TextAlign.Center)
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            textAlign = TextAlign.Center,
+                            color = if (isDark) Color.White else Color(0xFF1E1B4B)
+                        )
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -1231,7 +1247,7 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                     Text(
                         text = if (timerCount > 0) "Resend code in ${timerCount}s" else "Did not receive code? Tap Resend below",
                         fontSize = 12.sp,
-                        color = Color(0xFF6B21A8),
+                        color = textPrimary,
                         fontWeight = FontWeight.Bold
                     )
 
@@ -1256,7 +1272,7 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                     ) {
                         Text(
                             text = "Resend Verification Code",
-                            color = if (timerCount == 0) Color(0xFF9333EA) else Color.Gray,
+                            color = if (timerCount == 0) (if (isDark) Color(0xFFC084FC) else Color(0xFF9333EA)) else Color.Gray,
                             fontWeight = FontWeight.Bold
                         )
                     }

@@ -84,7 +84,7 @@ class HeartRepository(private val dao: HeartDao) {
             phone = phone,
             inviteCode = code,
             isGoogleUser = isGoogleUser,
-            isOtpVerified = true, // By default OTP is pre-verified to avoid any entry barrier as requested
+            isOtpVerified = isGoogleUser, // Google users are verified automatically, normal signups require OTP verification
             age = age,
             gender = gender
         )
