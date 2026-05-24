@@ -749,6 +749,49 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateUserProfileDetails(
+        newName: String,
+        newEmail: String,
+        newPhone: String,
+        newAge: Int,
+        newBio: String,
+        newAvatarUrl: String
+    ) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            val oldEmail = user.email
+            val updatedUser = user.copy(
+                username = newName,
+                email = newEmail.trim().lowercase(),
+                phone = newPhone.trim(),
+                age = newAge,
+                gender = newBio.trim(), // Use gender to store status text/bio
+                avatarUrl = newAvatarUrl.trim()
+            )
+
+            if (oldEmail.lowercase() != newEmail.trim().lowercase()) {
+                repository.updateUser(updatedUser)
+                database.heartDao().deleteUserByEmail(oldEmail)
+                saveSessionEmail(newEmail.trim().lowercase())
+            } else {
+                repository.updateUser(updatedUser)
+            }
+            
+            _currentUser.value = updatedUser
+
+            // Update legacy LoversProfile for consistency
+            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
+            repository.updateProfile(
+                legacy.copy(
+                    myName = newName,
+                    loggedInUserEmail = newEmail.trim().lowercase(),
+                    avatarUrl = newAvatarUrl.trim(),
+                    statusText = newBio.trim()
+                )
+            )
+        }
+    }
+
     fun connectCoupleByEmailAndCode(partnerEmail: String, partnerCode: String) {
         viewModelScope.launch {
             _authError.value = null

@@ -1537,80 +1537,201 @@ fun MainHomeScreen(
 
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier
-                    .background(Color.White)
-                    .statusBarsPadding()
-            ) {
-                // Large Brand Head Bar with Dual Pill Gradients
-                Row(
+            val isPartnerConnected = currentUser.connectedPartnerEmail?.isNotEmpty() == true
+            if (isPartnerConnected) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .background(Color.White)
+                        .statusBarsPadding()
                 ) {
+                    // Large Brand Head Bar with Dual Pill Gradients
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Double Border Avatar Frame
-                        Box(
-                            modifier = Modifier.size(46.dp),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // Double Border Avatar Frame
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .border(width = 2.dp, color = primaryColor, shape = CircleShape)
-                                    .padding(2.dp)
+                                modifier = Modifier.size(46.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .clip(CircleShape)
-                                        .background(themeGradient),
-                                    contentAlignment = Alignment.Center
+                                        .background(Color.White)
+                                        .border(width = 2.dp, color = primaryColor, shape = CircleShape)
+                                        .padding(2.dp)
                                 ) {
-                                    Text(
-                                        text = (currentUser.connectedPartnerEmail?.take(1) ?: "P").uppercase(),
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 16.sp
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                            .background(themeGradient),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = (currentUser.connectedPartnerEmail?.take(1) ?: "P").uppercase(),
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 16.sp
+                                        )
+                                    }
                                 }
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF22C55E))
+                                        .border(width = 1.5.dp, color = Color.White, shape = CircleShape)
+                                        .align(Alignment.BottomEnd)
+                                )
                             }
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF22C55E))
-                                    .border(width = 1.5.dp, color = Color.White, shape = CircleShape)
-                                    .align(Alignment.BottomEnd)
-                             )
+
+                            Column {
+                                Text(
+                                    text = "SOULMATE SYNC",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = primaryColor,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = (currentUser.connectedPartnerEmail?.split("@")?.get(0) ?: "Sophia").replaceFirstChar { it.uppercase() },
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
                         }
 
-                        Column {
-                            Text(
-                                text = "SOULMATE SYNC",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = primaryColor,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                text = (currentUser.connectedPartnerEmail?.split("@")?.get(0) ?: "Sophia").capitalize(),
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF0F172A)
-                            )
+                        // Logout / Options
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(
+                                onClick = { viewModel.logout() },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFFFF0F3))
+                            ) {
+                                Icon(Icons.Default.Logout, "Logout", tint = primaryColor, modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
 
-                    // Logout / Options
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Streaks & Snap Score stats pill header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Streaks Block
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9FA)),
+                            border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🔥", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${currentUser.streakCount} Snaps Active",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE11D48)
+                                )
+                            }
+                        }
+
+                        // Scores Block
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9FA)),
+                            border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("✨", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${currentUser.snapScore} Snap Score",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE11D48)
+                                )
+                            }
+                        }
+                    }
+
+                    // Offline / Supabase Sync Notice
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (viewModel.isSupabaseConnected) Color(0xFF22C55E).copy(alpha = 0.08f)
+                                else Color(0xFFFF9F0A).copy(alpha = 0.08f)
+                            )
+                            .padding(vertical = 4.dp, horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (viewModel.isSupabaseConnected) "SECURE SUPABASE CONNECTED" else "OFFLINE SECURE SANDBOX ACTIVE",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (viewModel.isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706)
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .background(Color.White)
+                        .statusBarsPadding()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("💖", fontSize = 24.sp)
+                            Text(
+                                text = "HeartSync",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black,
+                                color = primaryColor
+                            )
+                        }
                         IconButton(
                             onClick = { viewModel.logout() },
                             modifier = Modifier
@@ -1621,88 +1742,6 @@ fun MainHomeScreen(
                             Icon(Icons.Default.Logout, "Logout", tint = primaryColor, modifier = Modifier.size(18.dp))
                         }
                     }
-                }
-
-                // Streaks & Snap Score stats pill header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Streaks Block
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .shadow(2.dp, RoundedCornerShape(16.dp)),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9FA)),
-                        border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp, horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("🔥", fontSize = 16.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${currentUser.streakCount} Snaps Active",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFE11D48)
-                            )
-                        }
-                    }
-
-                    // Scores Block
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .shadow(2.dp, RoundedCornerShape(16.dp)),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9FA)),
-                        border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp, horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("✨", fontSize = 16.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${currentUser.snapScore} Snap Score",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFE11D48)
-                            )
-                        }
-                    }
-                }
-
-                // Offline / Supabase Sync Notice
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (viewModel.isSupabaseConnected) Color(0xFF22C55E).copy(alpha = 0.08f)
-                            else Color(0xFFFF9F0A).copy(alpha = 0.08f)
-                        )
-                        .padding(vertical = 4.dp, horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (viewModel.isSupabaseConnected) "SECURE SUPABASE CONNECTED" else "OFFLINE SECURE SANDBOX ACTIVE",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black,
-                        color = if (viewModel.isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706)
-                    )
                 }
             }
         },
@@ -3329,14 +3368,33 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
 
     var editMode by remember { mutableStateOf(false) }
     var nicknameInput by remember { mutableStateOf(user.username) }
+    var emailInput by remember { mutableStateOf(user.email) }
+    var phoneInput by remember { mutableStateOf(user.phone) }
+    var ageInput by remember { mutableStateOf(user.age.toString()) }
+    var avatarUrlInput by remember { mutableStateOf(user.avatarUrl) }
     var statusText by remember { mutableStateOf(user.gender.ifBlank { "Holding hands forever & always ❤️" }) }
+
+    androidx.compose.runtime.LaunchedEffect(editMode) {
+        if (editMode) {
+            nicknameInput = user.username
+            emailInput = user.email
+            phoneInput = user.phone
+            ageInput = user.age.toString()
+            avatarUrlInput = user.avatarUrl
+            statusText = user.gender.ifBlank { "Holding hands forever & always ❤️" }
+        }
+    }
     
     // Image selection state & Presets option
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: android.net.Uri? ->
         uri?.let {
-            viewModel.updateAvatarUrl(it.toString())
+            if (editMode) {
+                avatarUrlInput = it.toString()
+            } else {
+                viewModel.updateAvatarUrl(it.toString())
+            }
         }
     }
 
@@ -3378,11 +3436,18 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Profile", fontWeight = FontWeight.Black, fontSize = 18.sp, color = headingColor)
+                            Text("Profile Sanctuary", fontWeight = FontWeight.Black, fontSize = 18.sp, color = headingColor)
                             IconButton(onClick = {
                                 if (editMode) {
-                                    viewModel.updateProfileName(nicknameInput, user.connectedPartnerEmail ?: "Sophia", "2024-04-12")
-                                    viewModel.updateStatusText(statusText)
+                                    val ageVal = ageInput.toIntOrNull() ?: user.age
+                                    viewModel.updateUserProfileDetails(
+                                        newName = nicknameInput,
+                                        newEmail = emailInput,
+                                        newPhone = phoneInput,
+                                        newAge = ageVal,
+                                        newBio = statusText,
+                                        newAvatarUrl = avatarUrlInput
+                                    )
                                 }
                                 editMode = !editMode
                             }) {
@@ -3400,7 +3465,8 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                             OutlinedTextField(
                                 value = nicknameInput,
                                 onValueChange = { nicknameInput = it },
-                                label = { Text("Your Profile Nickname", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                label = { Text("Profile Nickname", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = primaryColor) },
                                 modifier = Modifier.fillMaxWidth(),
                                 textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -3412,13 +3478,93 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                                     unfocusedLabelColor = grayColor
                                 )
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
+                            
                             OutlinedTextField(
                                 value = statusText,
                                 onValueChange = { statusText = it },
-                                label = { Text("Love Status Text", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                label = { Text("Your Love Bio / Status", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                leadingIcon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = primaryColor) },
                                 modifier = Modifier.fillMaxWidth(),
                                 textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = emailInput,
+                                onValueChange = { emailInput = it },
+                                label = { Text("Email Address", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = primaryColor) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = phoneInput,
+                                onValueChange = { phoneInput = it },
+                                label = { Text("Phone Number", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = primaryColor) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = ageInput,
+                                onValueChange = { ageInput = it },
+                                label = { Text("Age", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                leadingIcon = { Icon(Icons.Default.Cake, contentDescription = null, tint = primaryColor) },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = avatarUrlInput,
+                                onValueChange = { avatarUrlInput = it },
+                                label = { Text("Profile Photo URL", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                leadingIcon = { Icon(Icons.Default.Link, contentDescription = null, tint = primaryColor) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                trailingIcon = {
+                                    IconButton(onClick = { showPresetDialog = true }) {
+                                        Icon(Icons.Default.Photo, "Presets", tint = primaryColor)
+                                    }
+                                },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = textStyleColor,
                                     unfocusedTextColor = textStyleColor,
@@ -3489,13 +3635,28 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                                 Spacer(modifier = Modifier.height(12.dp))
 
                                 Text(
-                                    text = "“" + statusText + "”",
+                                    text = "“" + (if (user.gender.isNotEmpty()) user.gender else statusText) + "”",
                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                                     fontSize = 13.sp,
                                     color = primaryColor,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(horizontal = 16.dp)
                                 )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(borderStrokeColor))
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Dynamic Profile Detail Rows
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    ProfileDetailRow(icon = Icons.Default.Email, label = "Email", value = user.email, themeColor = primaryColor, textColor = textStyleColor, grayColor = grayColor)
+                                    ProfileDetailRow(icon = Icons.Default.Phone, label = "Phone", value = user.phone.ifBlank { "Not provided" }, themeColor = primaryColor, textColor = textStyleColor, grayColor = grayColor)
+                                    ProfileDetailRow(icon = Icons.Default.Cake, label = "Age", value = if (user.age > 0) "${user.age} years old" else "Not set", themeColor = primaryColor, textColor = textStyleColor, grayColor = grayColor)
+                                    ProfileDetailRow(icon = Icons.Default.Photo, label = "Photo URL", value = if (user.avatarUrl.isNotEmpty()) user.avatarUrl.take(25) + "..." else "None", themeColor = primaryColor, textColor = textStyleColor, grayColor = grayColor)
+                                }
                             }
                         }
                     }
@@ -3807,6 +3968,31 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
             titleContentColor = headingColor,
             textContentColor = cardContentColor
         )
+    }
+}
+
+@Composable
+fun ProfileDetailRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    themeColor: Color,
+    textColor: Color,
+    grayColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = themeColor, modifier = Modifier.size(18.dp))
+            Text(label, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = grayColor)
+        }
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = textColor)
     }
 }
 
