@@ -736,10 +736,83 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateAvatarUrl(url: String) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            val u = user.copy(avatarUrl = url)
+            repository.updateUser(u)
+            _currentUser.value = u
+
+            // Also update legacy LoversProfile
+            val legacy = repository.profileFlow.first() ?: LoversProfile()
+            repository.updateProfile(legacy.copy(avatarUrl = url))
+        }
+    }
+
+    fun connectCoupleByEmailAndCode(partnerEmail: String, partnerCode: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            val self = _currentUser.value ?: return@launch
+            val trimEmail = partnerEmail.trim().lowercase()
+            val trimCode = partnerCode.trim().uppercase()
+
+            if (trimEmail.isEmpty() || trimCode.isEmpty()) {
+                _authError.value = "Please complete both email and exchange code fields."
+                return@launch
+            }
+
+            if (trimEmail == self.email.lowercase()) {
+                _authError.value = "You cannot pair with your own email!"
+                return@launch
+            }
+
+            // Find partner by email directly in DB
+            val partnerUser = database.heartDao().getUserByEmail(trimEmail)
+            if (partnerUser == null) {
+                _authError.value = "No registered user found with the email: $trimEmail"
+                return@launch
+            }
+
+            // Normalize and verify codes (support both numeric-only block or original prefix HS-)
+            val cleanPartnerInvite = partnerUser.inviteCode.replace("HS-", "").trim().uppercase()
+            val cleanEnteredCode = trimCode.replace("HS-", "").trim().uppercase()
+
+            if (cleanPartnerInvite != cleanEnteredCode) {
+                _authError.value = "Exchange code is incorrect for this user email."
+                return@launch
+            }
+
+            // Check if already coupled
+            if (partnerUser.connectedPartnerEmail != null && partnerUser.connectedPartnerEmail != self.email) {
+                _authError.value = "Your partner is already paired with another soulmate."
+                return@launch
+            }
+
+            // Link them together!
+            val linked = repository.linkCouple(self.email, partnerUser.inviteCode)
+            if (linked) {
+                val updatedSelf = repository.getUserFlow(self.email).first()
+                _currentUser.value = updatedSelf
+                _pairingCelebrationPartnerName.value = partnerUser.username
+                startCoupleDataSync()
+                _currentScreen.value = AppScreen.MAIN
+            } else {
+                _authError.value = "Connection failed. Please retry."
+            }
+        }
+    }
+
     fun updateStatusText(status: String) {
         viewModelScope.launch {
             val legacy = repository.profileFlow.first() ?: LoversProfile()
             repository.updateProfile(legacy.copy(statusText = status))
+
+            val self = _currentUser.value
+            if (self != null) {
+                val updated = self.copy(gender = status)
+                repository.updateUser(updated)
+                _currentUser.value = updated
+            }
         }
     }
 

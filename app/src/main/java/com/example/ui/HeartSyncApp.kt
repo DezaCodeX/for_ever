@@ -1,5 +1,7 @@
 package com.example.ui
-
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -1718,12 +1720,60 @@ fun MainHomeScreen(
                 .padding(innerPadding)
         ) {
             // Render view dynamic based on Tab selection
-            when (selectedTab) {
-                NavigationTab.CHATS -> ChatView(viewModel, currentUser, messagesList)
-                NavigationTab.SNAPS -> SnapsView(viewModel, currentUser, snapsList)
-                NavigationTab.STORIES -> StoriesView(viewModel, currentUser, storiesList)
-                NavigationTab.CALLS -> CallsView(viewModel, currentUser, callState, callType)
-                NavigationTab.PROFILE -> OnboardingProfileView(viewModel, currentUser)
+            val isConnectedForTabs = currentUser?.connectedPartnerEmail?.isNotEmpty() == true
+            if (!isConnectedForTabs && selectedTab != NavigationTab.PROFILE) {
+                // Beautiful romantic lock gate asking to connect first
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFFFFF1F2), Color(0xFFFFECEF), Color.White)
+                            )
+                        )
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🔒", fontSize = 56.sp)
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Text(
+                            text = "Couple Sanctuary Locked",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF0F172A)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "To synchronize secure private chat logs, real-time snap camera, couple story moments, and voice/video call rooms, you must link with your partner first.\n\nGo to the Profile tab, enter their email address, and exchange 6-digit codes to sync!",
+                            textAlign = TextAlign.Center,
+                            fontSize = 13.sp,
+                            color = Color(0xFF64748B),
+                            lineHeight = 18.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(26.dp))
+                        Button(
+                            onClick = { selectedTab = NavigationTab.PROFILE },
+                            colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Connect Couple Profile Now 💖", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            } else {
+                when (selectedTab) {
+                    NavigationTab.CHATS -> ChatView(viewModel, currentUser, messagesList)
+                    NavigationTab.SNAPS -> SnapsView(viewModel, currentUser, snapsList)
+                    NavigationTab.STORIES -> StoriesView(viewModel, currentUser, storiesList)
+                    NavigationTab.CALLS -> CallsView(viewModel, currentUser, callState, callType)
+                    NavigationTab.PROFILE -> OnboardingProfileView(viewModel, currentUser)
+                }
             }
 
             // Falling floating hearts call particles overlay
@@ -3259,177 +3309,504 @@ fun CallsView(viewModel: HeartViewModel, user: User, state: String, type: String
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
+    val activeTheme = user.currentTheme
+    val isDarkTheme = activeTheme == "Cosmic Romance"
+    
+    // Theme colors
+    val primaryColor = when (activeTheme) {
+        "Lovely Lavender" -> Color(0xFF9333EA)
+        "Cozy Crimson" -> Color(0xFFBE123C)
+        "Cosmic Romance" -> Color(0xFFEC4899)
+        else -> Color(0xFFFF4B6E)
+    }
+    
+    val cardBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val cardContentColor = if (isDarkTheme) Color.White else Color(0xFF1E293B)
+    val borderStrokeColor = if (isDarkTheme) Color(0xFF334155) else Color(0xFFFFF0F3)
+    val textStyleColor = if (isDarkTheme) Color.White else Color.Black
+    val headingColor = if (isDarkTheme) Color.White else Color(0xFF0F172A)
+    val grayColor = if (isDarkTheme) Color(0xFF94A3B8) else Color.Gray
+
     var editMode by remember { mutableStateOf(false) }
     var nicknameInput by remember { mutableStateOf(user.username) }
-    var statusText by remember { mutableStateOf("Holding hands forever & always ❤️") }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
-                border = BorderStroke(1.dp, Color(0xFFFFF0F3)),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Soulmate Profile Hub", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF0F172A))
-                        IconButton(onClick = {
-                            if (editMode) {
-                                viewModel.updateProfileName(nicknameInput, "Sophia", "2024-04-12")
-                                viewModel.updateStatusText(statusText)
-                            }
-                            editMode = !editMode
-                        }) {
-                            Icon(
-                                imageVector = if (editMode) Icons.Default.Save else Icons.Default.Edit,
-                                tint = Color(0xFFFF4B6E),
-                                contentDescription = "Edit profiles"
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (editMode) {
-                        OutlinedTextField(
-                            value = nicknameInput,
-                            onValueChange = { nicknameInput = it },
-                            label = { Text("Your Profile Nickname") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = statusText,
-                            onValueChange = { statusText = it },
-                            label = { Text("Love Status Text") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        // Display visual profile details
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(listOf(Color(0xFFFDA4AF), Color(0xFFF43F5E)))
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(user.username.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Black, fontSize = 28.sp)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(user.username, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                            Text(user.email, color = Color.Gray, fontSize = 11.sp)
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Text(
-                                text = "“" + statusText + "”",
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontSize = 12.sp,
-                                color = Color(0xFFFF4B6E),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            }
+    var statusText by remember { mutableStateOf(user.gender.ifBlank { "Holding hands forever & always ❤️" }) }
+    
+    // Image selection state & Presets option
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            viewModel.updateAvatarUrl(it.toString())
         }
+    }
 
-        // Custom Central wallpapers options decoration
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
-                border = BorderStroke(1.dp, Color(0xFFFFF0F3)),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Central Love Wallpaper Themes", fontWeight = FontWeight.Black, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
+    var showPresetDialog by remember { mutableStateOf(false) }
+    val presets = listOf(
+        "https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&q=80&w=200", // Red Heart
+        "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&q=80&w=200", // Couple
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200", // Avatar girl
+        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200", // Avatar boy
+        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200"  // Portrait
+    )
 
-                    val themes = listOf("Vibrant Palette", "Romantic Pink", "Lovely Lavender", "Cozy Crimson", "Cosmic Romance")
-                    themes.forEach { t ->
+    // Unconnected Coupling inputs
+    var partnerEmailInput by remember { mutableStateOf("") }
+    var partnerCodeInput by remember { mutableStateOf("") }
+
+    val isConnected = !user.connectedPartnerEmail.isNullOrBlank()
+
+    Heart3DAnimationBackground(activeTheme = activeTheme) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Profile Card (Always shown)
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(6.dp, RoundedCornerShape(24.dp)),
+                    colors = CardDefaults.cardColors(containerColor = cardBg, contentColor = cardContentColor),
+                    border = BorderStroke(1.dp, borderStrokeColor),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.updateTheme(t) }
-                                .padding(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                val dotColor = when (t) {
-                                    "Vibrant Palette" -> Color(0xFFFF4B6E)
-                                    "Romantic Pink" -> Color(0xFFFDA4AF)
-                                    "Lovely Lavender" -> Color(0xFFC084FC)
-                                    "Cozy Crimson" -> Color(0xFFBE123C)
-                                    else -> Color(0xFF1E1B4B)
+                            Text("Profile", fontWeight = FontWeight.Black, fontSize = 18.sp, color = headingColor)
+                            IconButton(onClick = {
+                                if (editMode) {
+                                    viewModel.updateProfileName(nicknameInput, user.connectedPartnerEmail ?: "Sophia", "2024-04-12")
+                                    viewModel.updateStatusText(statusText)
                                 }
-                                Box(modifier = Modifier.size(10.dp).background(dotColor, CircleShape))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(t, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                editMode = !editMode
+                            }) {
+                                Icon(
+                                    imageVector = if (editMode) Icons.Default.Save else Icons.Default.Edit,
+                                    tint = primaryColor,
+                                    contentDescription = "Edit profiles"
+                                )
                             }
-                            if (user.currentTheme == t) {
-                                Icon(Icons.Default.Check, "Active", tint = Color(0xFFFF4B6E))
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        if (editMode) {
+                            OutlinedTextField(
+                                value = nicknameInput,
+                                onValueChange = { nicknameInput = it },
+                                label = { Text("Your Profile Nickname", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = statusText,
+                                onValueChange = { statusText = it },
+                                label = { Text("Love Status Text", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+                        } else {
+                            // Display visual profile details
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(100.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(listOf(Color(0xFFFDA4AF), Color(0xFFFF4B6E)))
+                                        )
+                                        .clickable {
+                                            showPresetDialog = true
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (user.avatarUrl.isNotEmpty()) {
+                                        coil.compose.AsyncImage(
+                                            model = user.avatarUrl,
+                                            contentDescription = "Profile Photo",
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = user.username.take(1).uppercase(),
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 36.sp
+                                        )
+                                    }
+                                    
+                                    // Upload badge
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(primaryColor, CircleShape)
+                                            .align(Alignment.BottomEnd)
+                                            .border(2.dp, cardBg, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CameraAlt,
+                                            contentDescription = "Upload profile photo",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(user.username, fontWeight = FontWeight.Black, fontSize = 20.sp, color = textStyleColor)
+                                Text(user.email, color = grayColor, fontSize = 12.sp)
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    text = "“" + statusText + "”",
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    fontSize = 13.sp,
+                                    color = primaryColor,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
                             }
                         }
                     }
                 }
             }
-        }
 
-        // BREAK / REMOVE COUPLE CONNECTION (REQUIRED)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
-                border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Crucial Controls", fontWeight = FontWeight.Black, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "Click below to sever connection with connected soulmate. All chat logs, streak points, and mutual video calls will reset.",
-                        fontSize = 11.sp,
-                        color = Color.Gray,
-                        lineHeight = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { viewModel.removeCoupleLink() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+            // Connection Portal Section
+            if (!isConnected) {
+                // "if not the id is connected with the usere as partner then the soulmate sync in thsis page should not be shown"
+                // Instead, render the Exchange Coupling Card:
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(6.dp, RoundedCornerShape(24.dp)),
+                        colors = CardDefaults.cardColors(containerColor = cardBg, contentColor = cardContentColor),
+                        border = BorderStroke(1.dp, borderStrokeColor),
+                        shape = RoundedCornerShape(24.dp)
                     ) {
-                        Text("Break Couple Connection 💔", fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🔗", fontSize = 24.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Sync and Connect Soulmates", fontWeight = FontWeight.Black, fontSize = 15.sp, color = headingColor)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Enter your partner's email and their 6-digit exchange code below. To pair successfully, both partners should enter each other's details!",
+                                fontSize = 11.sp,
+                                color = grayColor,
+                                lineHeight = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Show current user's exchange code
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFFFF1F2)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("YOUR EXCHANGE CODE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = primaryColor)
+                                        Text(user.inviteCode.replace("HS-", ""), fontSize = 22.sp, fontWeight = FontWeight.Black, color = textStyleColor)
+                                    }
+                                    Text("💌 Share Code", fontSize = 11.sp, color = primaryColor, fontWeight = FontWeight.Bold, modifier = Modifier.clickable {
+                                        // Share indicator
+                                    })
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            OutlinedTextField(
+                                value = partnerEmailInput,
+                                onValueChange = { partnerEmailInput = it },
+                                label = { Text("Partner Email address", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = partnerCodeInput,
+                                onValueChange = { partnerCodeInput = it },
+                                label = { Text("Partner 6-Digit Code", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textStyleColor,
+                                    unfocusedTextColor = textStyleColor,
+                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                    focusedLabelColor = primaryColor,
+                                    unfocusedLabelColor = grayColor
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = {
+                                    viewModel.connectCoupleByEmailAndCode(partnerEmailInput, partnerCodeInput)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                            ) {
+                                Text("Exchange & Synchronize Hearts 💞", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Connected Partner Info Box
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(6.dp, RoundedCornerShape(24.dp)),
+                        colors = CardDefaults.cardColors(containerColor = cardBg, contentColor = cardContentColor),
+                        border = BorderStroke(1.dp, borderStrokeColor),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Synchronized Partnership", fontWeight = FontWeight.Black, fontSize = 14.sp, color = headingColor)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(CircleShape)
+                                        .background(primaryColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("❤️", fontSize = 24.sp)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Connected Soulmate:", fontSize = 11.sp, color = grayColor)
+                                    Text(user.connectedPartnerEmail ?: "", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = textStyleColor)
+                                }
+                            }
+                        }
                     }
                 }
             }
+
+            // Central wallpapers Card
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(24.dp)),
+                    colors = CardDefaults.cardColors(containerColor = cardBg, contentColor = cardContentColor),
+                    border = BorderStroke(1.dp, borderStrokeColor),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Central Love Wallpaper Themes", fontWeight = FontWeight.Black, fontSize = 14.sp, color = headingColor)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val themes = listOf("Vibrant Palette", "Romantic Pink", "Lovely Lavender", "Cozy Crimson", "Cosmic Romance")
+                        themes.forEach { t ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewModel.updateTheme(t) }
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val dotColor = when (t) {
+                                        "Vibrant Palette" -> Color(0xFFFF4B6E)
+                                        "Romantic Pink" -> Color(0xFFFDA4AF)
+                                        "Lovely Lavender" -> Color(0xFFC084FC)
+                                        "Cozy Crimson" -> Color(0xFFBE123C)
+                                        else -> Color(0xFF1E1B4B)
+                                    }
+                                    Box(modifier = Modifier.size(10.dp).background(dotColor, CircleShape))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(t, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textStyleColor)
+                                }
+                                if (user.currentTheme == t) {
+                                    Icon(Icons.Default.Check, "Active", tint = primaryColor)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Connection Sever Control
+            if (isConnected) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(4.dp, RoundedCornerShape(24.dp)),
+                        colors = CardDefaults.cardColors(containerColor = cardBg, contentColor = cardContentColor),
+                        border = BorderStroke(1.dp, borderStrokeColor),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Crucial Controls", fontWeight = FontWeight.Black, fontSize = 14.sp, color = headingColor)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Click below to sever connection with connected soulmate. All chat logs, streak points, and mutual video calls will reset.",
+                                fontSize = 11.sp,
+                                color = grayColor,
+                                lineHeight = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = { viewModel.removeCoupleLink() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Break Couple Connection 💔", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Logout row at the bottom of the page
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { viewModel.logout() },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isDarkTheme) Color(0xFF3B4F66) else Color(0xFFF1F5F9), contentColor = primaryColor),
+                    border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.4f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Logout,
+                        contentDescription = "Logout icon",
+                        tint = primaryColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Logout Account 🚪", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
+    }
+
+    // Interactive Photo Picker Preset / Upload Select Dialog
+    if (showPresetDialog) {
+        AlertDialog(
+            onDismissRequest = { showPresetDialog = false },
+            title = { Text("Choose Profile Photo Style", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Button(
+                        onClick = {
+                            showPresetDialog = false
+                            imagePickerLauncher.launch("image/*")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Upload, "Upload local image")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Upload from Photo Gallery 🖼️")
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Or Select Premium Couple Presets:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = grayColor)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        presets.forEach { url ->
+                            Box(
+                                modifier = Modifier
+                                    .size(45.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, primaryColor, CircleShape)
+                                    .clickable {
+                                        viewModel.updateAvatarUrl(url)
+                                        showPresetDialog = false
+                                    }
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = url,
+                                    contentDescription = "Preset avatar photo selection link",
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPresetDialog = false }) {
+                    Text("Cancel", color = primaryColor)
+                }
+            },
+            containerColor = cardBg,
+            titleContentColor = headingColor,
+            textContentColor = cardContentColor
+        )
     }
 }
 
@@ -3705,6 +4082,7 @@ fun BottomNavItem(
 @Composable
 fun Heart3DAnimationBackground(
     modifier: Modifier = Modifier,
+    activeTheme: String = "Vibrant Palette",
     content: @Composable () -> Unit
 ) {
     val transition = rememberInfiniteTransition()
@@ -3745,20 +4123,41 @@ fun Heart3DAnimationBackground(
         )
     )
 
+    val bgColors = when (activeTheme) {
+        "Cosmic Romance" -> listOf(Color(0xFF0F172A), Color(0xFF1E112C), Color(0xFF030712))
+        "Cozy Crimson" -> listOf(Color(0xFF4C0519), Color(0xFF6B0721), Color(0xFF3B0311))
+        "Lovely Lavender" -> listOf(Color(0xFFF3E8FF), Color(0xFFE9D5FF), Color(0xFFEDE9FE))
+        "Romantic Pink" -> listOf(Color(0xFFFFF1F2), Color(0xFFFFECEF), Color(0xFFFFE4E6))
+        else -> listOf(Color(0xFFFFEEF2), Color(0xFFFFD1DC), Color(0xFFFFF1F2)) // Vibrant Palette
+    }
+
+    val bubble1Color = when (activeTheme) {
+        "Cosmic Romance" -> Color(0xFFA855F7)
+        "Cozy Crimson" -> Color(0xFFF43F5E)
+        "Lovely Lavender" -> Color(0xFFC084FC)
+        else -> Color(0xFFA855F7)
+    }
+
+    val bubble2Color = when (activeTheme) {
+        "Cosmic Romance" -> Color(0xFFEC4899)
+        "Cozy Crimson" -> Color(0xFF9F1239)
+        "Lovely Lavender" -> Color(0xFFD8B4FE)
+        else -> Color(0xFFEC4899)
+    }
+
+    val bubble3Color = when (activeTheme) {
+        "Cosmic Romance" -> Color(0xFF818CF8)
+        "Cozy Crimson" -> Color(0xFFE11D48)
+        "Lovely Lavender" -> Color(0xFFE9D5FF)
+        else -> Color(0xFFC084FC)
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFFF3E8FF), // Beautiful Lavender top
-                        Color(0xFFFAE8FF), // Rose-lavender middle
-                        Color(0xFFEDE9FE)  // Soft Indigo-lavender bottom
-                    )
-                )
-            )
+            .background(Brush.verticalGradient(bgColors))
     ) {
-        Canvas(modifier = Modifier.fillMaxSize().alpha(0.5f)) {
+        Canvas(modifier = Modifier.fillMaxSize().alpha(if (activeTheme == "Cosmic Romance" || activeTheme == "Cozy Crimson") 0.35f else 0.5f)) {
             val w = size.width
             val h = size.height
 
@@ -3768,7 +4167,7 @@ fun Heart3DAnimationBackground(
                 centerY = h * (1f - floatAnim1) - 60.dp.toPx(),
                 radius = 50.dp.toPx() * (0.8f + floatAnim1 * 0.4f),
                 pulseFactor = beatScale,
-                primaryColor = Color(0xFFA855F7), // Rich Lavender-Purple
+                primaryColor = bubble1Color,
                 specularColor = Color.White
             )
 
@@ -3777,7 +4176,7 @@ fun Heart3DAnimationBackground(
                 centerY = h * (1f - floatAnim2) + 120.dp.toPx(),
                 radius = 65.dp.toPx() * (0.7f + floatAnim2 * 0.5f),
                 pulseFactor = beatScale * 0.96f,
-                primaryColor = Color(0xFFEC4899), // Rose Pink
+                primaryColor = bubble2Color,
                 specularColor = Color.White
             )
 
@@ -3786,8 +4185,8 @@ fun Heart3DAnimationBackground(
                 centerY = h * (1f - floatAnim3) - 200.dp.toPx(),
                 radius = 40.dp.toPx() * (0.9f + floatAnim3 * 0.3f),
                 pulseFactor = beatScale * 1.04f,
-                primaryColor = Color(0xFFC084FC), // Clear Lavender-Violet
-                specularColor = Color(0xFFFFE4E6)
+                primaryColor = bubble3Color,
+                specularColor = if (activeTheme == "Cosmic Romance") Color(0xFFEC4899) else Color(0xFFFFE4E6)
             )
         }
 
