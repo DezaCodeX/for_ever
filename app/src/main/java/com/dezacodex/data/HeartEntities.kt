@@ -19,7 +19,9 @@ data class User(
     val isOtpVerified: Boolean = false,
     val currentTheme: String = "Vibrant Palette",
     val age: Int = 0,
-    val gender: String = ""
+    val gender: String = "",
+    val pairingOtp: String? = null,
+    val pairingOtpExpiry: Long = 0
 )
 
 @Entity(tableName = "lovers_profiles")

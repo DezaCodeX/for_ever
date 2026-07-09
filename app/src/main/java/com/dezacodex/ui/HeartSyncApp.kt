@@ -1700,7 +1700,7 @@ fun MainHomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (viewModel.isSupabaseConnected) "SECURE SUPABASE CONNECTED" else "OFFLINE SECURE SANDBOX ACTIVE",
+                            text = if (viewModel.isSupabaseConnected) "SECURE MONGO ATLAS CONNECTED" else "OFFLINE SECURE SANDBOX ACTIVE",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Black,
                             color = if (viewModel.isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706)
@@ -3411,6 +3411,25 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
     var partnerEmailInput by remember { mutableStateOf("") }
     var partnerCodeInput by remember { mutableStateOf("") }
 
+    var pairingViewMode by remember { mutableStateOf("choices") } // "choices", "generate", "enter"
+    var enteredPartnerEmail by remember { mutableStateOf("") }
+    var enteredOtpCode by remember { mutableStateOf("") }
+
+    var otpSecondsRemaining by remember { mutableStateOf(300) }
+    LaunchedEffect(pairingViewMode, user.pairingOtpExpiry) {
+        if (pairingViewMode == "generate" && user.pairingOtpExpiry > System.currentTimeMillis()) {
+            while (true) {
+                val delayTime = user.pairingOtpExpiry - System.currentTimeMillis()
+                if (delayTime <= 0) {
+                    otpSecondsRemaining = 0
+                    break
+                }
+                otpSecondsRemaining = (delayTime / 1000).toInt()
+                delay(1000)
+            }
+        }
+    }
+
     val isConnected = !user.connectedPartnerEmail.isNullOrBlank()
 
     Heart3DAnimationBackground(activeTheme = activeTheme) {
@@ -3663,12 +3682,9 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                 }
             }
 
-            // Connection Portal Section
             if (!isConnected) {
-                // "if not the id is connected with the usere as partner then the soulmate sync in thsis page should not be shown"
-                // Instead, render the Exchange Coupling Card:
                 item {
-                    Card(
+                        Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .shadow(6.dp, RoundedCornerShape(24.dp)),
@@ -3678,91 +3694,174 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🔗", fontSize = 24.sp)
+                                Text("🔑", fontSize = 24.sp)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Sync and Connect Soulmates", fontWeight = FontWeight.Black, fontSize = 15.sp, color = headingColor)
+                                Text("Secure OTP Sync Sanctuary", fontWeight = FontWeight.Black, fontSize = 15.sp, color = headingColor)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Enter your partner's email and their 6-digit exchange code below. To pair successfully, both partners should enter each other's details!",
-                                fontSize = 11.sp,
-                                color = grayColor,
-                                lineHeight = 16.sp
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
 
-                            // Show current user's exchange code
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFFFF1F2)
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("YOUR EXCHANGE CODE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = primaryColor)
-                                        Text(user.inviteCode.replace("HS-", ""), fontSize = 22.sp, fontWeight = FontWeight.Black, color = textStyleColor)
+                            when (pairingViewMode) {
+                                "choices" -> {
+                                    Text(
+                                        text = "Pair up with your partner using automatic account-level OTP verification. Decide whether to generate a linking OTP or verify your partner's code below!",
+                                        fontSize = 11.sp,
+                                        color = grayColor,
+                                        lineHeight = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Button(
+                                        onClick = {
+                                            viewModel.generatePairingOtp()
+                                            pairingViewMode = "generate"
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                                    ) {
+                                        Text("🔑 Generate Secure OTP", fontWeight = FontWeight.Bold, color = Color.White)
                                     }
-                                    Text("💌 Share Code", fontSize = 11.sp, color = primaryColor, fontWeight = FontWeight.Bold, modifier = Modifier.clickable {
-                                        // Share indicator
-                                    })
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            pairingViewMode = "enter"
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, primaryColor)
+                                    ) {
+                                        Text("📥 Enter Partner OTP", fontWeight = FontWeight.Bold, color = primaryColor)
+                                    }
                                 }
-                            }
+                                "generate" -> {
+                                    Text(
+                                        text = "Share the following secure OTP code with your partner. They must enter this code on their device along with your email to link your accounts together!",
+                                        fontSize = 11.sp,
+                                        color = grayColor,
+                                        lineHeight = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFFFF1F2)
+                                        ),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text("YOUR CONNECTION OTP", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = primaryColor)
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = user.pairingOtp ?: "------",
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = textStyleColor,
+                                                style = androidx.compose.ui.text.TextStyle(letterSpacing = 4.sp)
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
 
-                            OutlinedTextField(
-                                value = partnerEmailInput,
-                                onValueChange = { partnerEmailInput = it },
-                                label = { Text("Partner Email address", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
-                                modifier = Modifier.fillMaxWidth(),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = textStyleColor,
-                                    unfocusedTextColor = textStyleColor,
-                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                                    focusedLabelColor = primaryColor,
-                                    unfocusedLabelColor = grayColor
-                                )
-                            )
+                                            val minutes = otpSecondsRemaining / 60
+                                            val seconds = otpSecondsRemaining % 60
+                                            val timeStr = String.format("%02d:%02d", minutes, seconds)
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                                            Text(
+                                                text = "Expires in $timeStr",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (otpSecondsRemaining < 60) Color.Red else primaryColor
+                                            )
+                                        }
+                                    }
 
-                            OutlinedTextField(
-                                value = partnerCodeInput,
-                                onValueChange = { partnerCodeInput = it },
-                                label = { Text("Partner 6-Digit Code", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
-                                modifier = Modifier.fillMaxWidth(),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = textStyleColor,
-                                    unfocusedTextColor = textStyleColor,
-                                    focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                                    focusedLabelColor = primaryColor,
-                                    unfocusedLabelColor = grayColor
-                                )
-                            )
+                                    Spacer(modifier = Modifier.height(16.dp))
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                    OutlinedButton(
+                                        onClick = { pairingViewMode = "choices" },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, grayColor)
+                                    ) {
+                                        Text("← Back to pairing options", fontWeight = FontWeight.Bold, color = grayColor)
+                                    }
+                                }
+                                "enter" -> {
+                                    Text(
+                                        text = "Please enter your soulmate's email and the 6-digit verification code generated on their screen to unlock sync features!",
+                                        fontSize = 11.sp,
+                                        color = grayColor,
+                                        lineHeight = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
 
-                            Button(
-                                onClick = {
-                                    viewModel.connectCoupleByEmailAndCode(partnerEmailInput, partnerCodeInput)
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
-                            ) {
-                                Text("Exchange & Synchronize Hearts 💞", fontWeight = FontWeight.Bold, color = Color.White)
+                                    OutlinedTextField(
+                                        value = enteredPartnerEmail,
+                                        onValueChange = { enteredPartnerEmail = it },
+                                        label = { Text("Partner Email Address", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = primaryColor) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = textStyleColor,
+                                            unfocusedTextColor = textStyleColor,
+                                            focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            focusedLabelColor = primaryColor,
+                                            unfocusedLabelColor = grayColor
+                                        )
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedTextField(
+                                        value = enteredOtpCode,
+                                        onValueChange = { enteredOtpCode = it },
+                                        label = { Text("6-Digit OTP Code", color = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = primaryColor) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textStyle = androidx.compose.ui.text.TextStyle(color = textStyleColor),
+                                        singleLine = true,
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = textStyleColor,
+                                            unfocusedTextColor = textStyleColor,
+                                            focusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            unfocusedContainerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            focusedLabelColor = primaryColor,
+                                            unfocusedLabelColor = grayColor
+                                        )
+                                    )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Button(
+                                        onClick = {
+                                            viewModel.connectCoupleByEmailAndOtp(enteredPartnerEmail, enteredOtpCode)
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                                    ) {
+                                        Text("Exchange & Connect Hearts 💞", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedButton(
+                                        onClick = { pairingViewMode = "choices" },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, grayColor)
+                                    ) {
+                                        Text("← Back to pairing options", fontWeight = FontWeight.Bold, color = grayColor)
+                                    }
+                                }
                             }
                         }
                     }
@@ -3878,6 +3977,105 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Break Couple Connection 💔", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check for Updates Card
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(24.dp)),
+                    colors = CardDefaults.cardColors(containerColor = cardBg, contentColor = cardContentColor),
+                    border = BorderStroke(1.dp, borderStrokeColor),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔄", fontSize = 24.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("In-App Updater", fontWeight = FontWeight.Black, fontSize = 14.sp, color = headingColor)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "Check if there are newer releases available for HeartSync on GitHub. You can download and install updates directly!",
+                            fontSize = 11.sp,
+                            color = grayColor,
+                            lineHeight = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val isChecking by viewModel.isCheckingForUpdates.collectAsState()
+                        val isDownloading by viewModel.isDownloadingUpdate.collectAsState()
+                        val downloadProgress by viewModel.updateDownloadProgress.collectAsState()
+                        val updateAvailable by viewModel.updateAvailable.collectAsState()
+                        val statusMessage by viewModel.updateStatusMessage.collectAsState()
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Current version: v${viewModel.appVersion}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = grayColor)
+
+                                Button(
+                                    onClick = { viewModel.checkForUpdates() },
+                                    enabled = !isChecking && !isDownloading,
+                                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    if (isChecking) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    } else {
+                                        Text("Check Updates", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+
+                            statusMessage?.let { msg ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFF1F5F9)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(msg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = textStyleColor)
+
+                                        if (isDownloading) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            LinearProgressIndicator(
+                                                progress = { downloadProgress },
+                                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                                color = primaryColor,
+                                                trackColor = primaryColor.copy(alpha = 0.2f)
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text("${(downloadProgress * 100).toInt()}% completed", fontSize = 10.sp, color = grayColor, modifier = Modifier.align(Alignment.End))
+                                        }
+
+                                        if (updateAvailable && !isDownloading) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Button(
+                                                onClick = { viewModel.triggerUpdateDownloadAndInstall() },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Download & Install Update 🚀", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

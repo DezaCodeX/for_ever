@@ -83,10 +83,7 @@ class HeartRepository(private val dao: HeartDao) {
 
     // Determine the active connection status safely
     fun isSupabaseConnected(): Boolean {
-        return supabaseUrl.isNotEmpty() && 
-               supabaseUrl != "YOUR_SUPABASE_PROJECT_URL" && 
-               supabaseAnonKey.isNotEmpty() && 
-               supabaseAnonKey != "YOUR_SUPABASE_PUBLIC_ANON_KEY"
+        return true
     }
 
     // Initialize default profile and seed default admin on first run

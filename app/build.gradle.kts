@@ -28,6 +28,12 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
+    create("debugConfig") {
+      storeFile = file("${rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
   }
 
   buildTypes {
@@ -38,7 +44,7 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      // Uses the default debug signing configuration
+      signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
   compileOptions {
@@ -50,6 +56,11 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+  packaging {
+    resources {
+      excludes += "META-INF/native-image/org.mongodb/bson/native-image.properties"
+    }
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
@@ -94,6 +105,9 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  implementation(libs.mongodb.driver.sync) {
+      exclude(group = "org.mongodb", module = "bson-record-codec")
+  }
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
