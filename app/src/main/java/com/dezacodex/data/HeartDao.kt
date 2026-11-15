@@ -44,6 +44,9 @@ interface HeartDao {
     @Query("SELECT * FROM love_messages ORDER BY timestamp ASC")
     fun getAllMessagesFlow(): Flow<List<LoveMessage>>
 
+    @Query("SELECT * FROM love_messages")
+    suspend fun getAllMessagesDirect(): List<LoveMessage>
+
     @Query("SELECT * FROM love_messages WHERE (senderEmail = :myEmail AND receiverEmail = :pEmail) OR (senderEmail = :pEmail AND receiverEmail = :myEmail) ORDER BY timestamp ASC")
     fun getCoupleMessagesFlow(myEmail: String, pEmail: String): Flow<List<LoveMessage>>
 

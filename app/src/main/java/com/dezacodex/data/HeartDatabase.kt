@@ -30,7 +30,7 @@ abstract class HeartDatabase : RoomDatabase() {
                     HeartDatabase::class.java,
                     "heartsync_database"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
                 instance

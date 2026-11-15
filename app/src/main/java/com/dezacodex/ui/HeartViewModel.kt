@@ -1,12 +1,29 @@
 package com.dezacodex.ui
 
 import android.app.Application
+import android.content.Context
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dezacodex.R
+import com.dezacodex.call.WebRtcCallEngine
 import com.dezacodex.data.*
+import com.dezacodex.notifications.HeartNotificationHelper
+import com.dezacodex.security.GoogleAuthManager
+import com.dezacodex.security.GoogleAuthResult
+import com.dezacodex.security.SecurityUtils
+import com.dezacodex.updater.UpdateManager
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
 import kotlin.random.Random
 
 enum class AppScreen {
@@ -16,8 +33,39 @@ enum class AppScreen {
 class HeartViewModel(application: Application) : AndroidViewModel(application) {
     private val database = HeartDatabase.getDatabase(application)
     private val repository = HeartRepository(database.heartDao())
+    private val storageRepository by lazy { FirebaseStorageRepository(application) }
 
-    // App Navigation Flow Screen
+    private val firebaseAppInitialized: Boolean = try {
+        if (FirebaseApp.getApps(application).isEmpty()) {
+            FirebaseApp.initializeApp(application) != null
+        } else true
+    } catch (_: Exception) {
+        false
+    }
+
+    private val firebaseAuth: FirebaseAuth? = if (firebaseAppInitialized) {
+        try { FirebaseAuth.getInstance() } catch (_: Exception) { null }
+    } else null
+
+    private val firestore: FirebaseFirestore? = if (firebaseAppInitialized) {
+        try {
+            val dbId = application.getString(R.string.firestore_database_id)
+            FirebaseFirestore.getInstance(dbId)
+        } catch (_: Exception) { null }
+    } else null
+
+    private val firestoreRepo: FirestoreHeartRepository? =
+        if (firestore != null && firebaseAuth != null) FirestoreHeartRepository(firestore, firebaseAuth) else null
+
+    val googleAuthManager: GoogleAuthManager? =
+        if (firebaseAuth != null) GoogleAuthManager(application, firebaseAuth) else null
+
+    val callEngine = WebRtcCallEngine(
+        context = application,
+        repositoryProvider = { firestoreRepo },
+        scope = viewModelScope
+    )
+
     private val _currentScreen = MutableStateFlow(AppScreen.SPLASH)
     val currentScreen: StateFlow<AppScreen> = _currentScreen.asStateFlow()
 
@@ -25,15 +73,21 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         _currentScreen.value = screen
     }
 
-    // Current Session State
+    private val _firebaseUser = MutableStateFlow<FirebaseUser?>(firebaseAuth?.currentUser)
+    val firebaseUser: StateFlow<FirebaseUser?> = _firebaseUser.asStateFlow()
+
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    // Couple Session Details
+    private val _activeCoupleRoom = MutableStateFlow<FirestoreCoupleRoom?>(null)
+    val activeCoupleRoom: StateFlow<FirestoreCoupleRoom?> = _activeCoupleRoom.asStateFlow()
+
+    private val _notifications = MutableStateFlow<List<FirestoreUserNotification>>(emptyList())
+    val notifications: StateFlow<List<FirestoreUserNotification>> = _notifications.asStateFlow()
+
     val profile: StateFlow<LoversProfile?> = repository.profileFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Couple-specific messaging flows (dynamic according to session)
     private val _messages = MutableStateFlow<List<LoveMessage>>(emptyList())
     val messages: StateFlow<List<LoveMessage>> = _messages.asStateFlow()
 
@@ -50,29 +104,24 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         _forceOfflineMode.value = enable
     }
 
-    val isSupabaseConnected: Boolean
-        get() = repository.isSupabaseConnected() && !_forceOfflineMode.value
+    val isCloudConnected: Boolean
+        get() = firebaseAuth?.currentUser != null && firestoreRepo != null && !_forceOfflineMode.value
 
-    val supabaseUrl = repository.supabaseUrl
-
-    // ACTIVE DRAWING/VIEW VIEW STATE
     private val _activeViewingSnap = MutableStateFlow<CoupleSnap?>(null)
     val activeViewingSnap = _activeViewingSnap.asStateFlow()
 
     private val _viewingSecondsRemaining = MutableStateFlow(0)
     val viewingSecondsRemaining = _viewingSecondsRemaining.asStateFlow()
 
-    // Simulated Call State
-    private val _callState = MutableStateFlow("IDLE") // "IDLE", "OUTGOING", "INCOMING", "CONNECTED"
+    private val _callState = MutableStateFlow("IDLE") // IDLE, OUTGOING, INCOMING, CONNECTED
     val callState = _callState.asStateFlow()
 
-    private val _callType = MutableStateFlow("VIDEO") // "VIDEO", "VOICE"
+    private val _callType = MutableStateFlow("VIDEO")
     val callType = _callType.asStateFlow()
 
-    private val _isPartnerSimulating = MutableStateFlow(true)
+    private val _isPartnerSimulating = MutableStateFlow(false)
     val isPartnerSimulating = _isPartnerSimulating.asStateFlow()
 
-    // Drag-and-drop / Telegram-style video elements
     private val _isAutoCamSync = MutableStateFlow(true)
     val isAutoCamSync = _isAutoCamSync.asStateFlow()
 
@@ -82,28 +131,28 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     private val _cameraEnabledPartner = MutableStateFlow(true)
     val cameraEnabledPartner = _cameraEnabledPartner.asStateFlow()
 
-    // Forgot Password OTP flow
-    private val _forgotPasswordPhase = MutableStateFlow(1) // 1: Email, 2: OTP, 3: New Password
+    private val _forgotPasswordPhase = MutableStateFlow(1)
     val forgotPasswordPhase = _forgotPasswordPhase.asStateFlow()
     var tempForgotEmail = ""
+    private var pendingOtpCode: String? = null
+    private var pendingOtpExpiryMs: Long = 0L
 
-    // Pairing Celebration Notification
     private val _pairingCelebrationPartnerName = MutableStateFlow<String?>(null)
     val pairingCelebrationPartnerName = _pairingCelebrationPartnerName.asStateFlow()
 
-    // Admin Specific Lists
     private val _adminUsersList = MutableStateFlow<List<User>>(emptyList())
     val adminUsersList: StateFlow<List<User>> = _adminUsersList.asStateFlow()
 
-    // Error & OTP States
     private val _authError = MutableStateFlow<String?>(null)
     val authError = _authError.asStateFlow()
 
-    var tempPhoneVerifiedEmail: String = "" // Hold verification state
+    private val _isAuthLoading = MutableStateFlow(false)
+    val isAuthLoading = _isAuthLoading.asStateFlow()
 
-    // In-App Updates Configuration & State Flows
+    var tempPhoneVerifiedEmail: String = ""
+
     val appVersion = "1.0"
-    private val updateManager = com.dezacodex.updater.UpdateManager(application)
+    private val updateManager = UpdateManager(application)
 
     private val _isCheckingForUpdates = MutableStateFlow(false)
     val isCheckingForUpdates: StateFlow<Boolean> = _isCheckingForUpdates.asStateFlow()
@@ -123,36 +172,199 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     private val _updateStatusMessage = MutableStateFlow<String?>(null)
     val updateStatusMessage: StateFlow<String?> = _updateStatusMessage.asStateFlow()
 
-    fun checkForUpdates() {
+    private var coupleSyncJobs: List<Job> = emptyList()
+    private var firestoreRoomSyncJobs: List<Job> = emptyList()
+    private val notifiedIds = mutableSetOf<String>()
+
+    init {
+        HeartNotificationHelper.ensureChannelsCreated(application)
+
+        // Purge expired disappearing messages every 2 seconds
         viewModelScope.launch {
-            _isCheckingForUpdates.value = true
-            _updateStatusMessage.value = "Checking GitHub project releases... 🔍"
-            val (available, apkUrl) = updateManager.checkForUpdate(appVersion)
-            _isCheckingForUpdates.value = false
-            _updateAvailable.value = available
-            _updateApkUrl.value = apkUrl
-            if (available) {
-                _updateStatusMessage.value = "New release found! Ready to download update... 📤"
+            while (true) {
+                delay(2000)
+                repository.purgeExpiredDisappearingMessages()
+            }
+        }
+
+        viewModelScope.launch {
+            repository.ensureProfileExists()
+            delay(1800)
+
+            val fbUser = firebaseAuth?.currentUser
+            if (fbUser != null) {
+                handleAuthenticatedFirebaseUser(fbUser)
             } else {
-                _updateStatusMessage.value = "You are already using the newest version. 💖"
+                _currentScreen.value = AppScreen.WELCOME
+            }
+        }
+
+        // Observe live Firebase Auth state changes
+        googleAuthManager?.let { manager ->
+            viewModelScope.launch {
+                manager.observeAuthState().collect { user ->
+                    _firebaseUser.value = user
+                    if (user != null && _currentScreen.value != AppScreen.SPLASH) {
+                        handleAuthenticatedFirebaseUser(user)
+                    }
+                }
             }
         }
     }
 
-    fun triggerUpdateDownloadAndInstall() {
-        val url = _updateApkUrl.value ?: return
+    private suspend fun handleAuthenticatedFirebaseUser(fbUser: FirebaseUser) {
+        val repo = firestoreRepo ?: return
+        val ensured = repo.ensureUserDocument(fbUser)
+        val fsUser = ensured.getOrNull()
+        val email = (fsUser?.email ?: fbUser.email ?: "${fbUser.uid}@heartsync.user").lowercase()
+        val mirrorUser = User(
+            email = email,
+            username = fsUser?.username ?: fbUser.displayName ?: "HeartSync User",
+            avatarUrl = fsUser?.photoUrl ?: fbUser.photoUrl?.toString().orEmpty(),
+            phone = fsUser?.phone.orEmpty(),
+            inviteCode = fsUser?.inviteCode ?: SecurityUtils.generateInviteCode(),
+            connectedPartnerEmail = fsUser?.partnerEmail ?: fsUser?.partnerUsername,
+            streakCount = fsUser?.streakCount ?: 0,
+            snapScore = fsUser?.snapScore ?: 0,
+            totalMomentsCount = fsUser?.totalMomentsCount ?: 0,
+            isGoogleUser = true,
+            isOtpVerified = true,
+            currentTheme = fsUser?.currentTheme ?: "Vibrant Palette",
+            age = fsUser?.age ?: 0,
+            gender = fsUser?.bio ?: fsUser?.gender.orEmpty()
+        )
+        repository.upsertLocalMirrorUser(mirrorUser)
+        _currentUser.value = mirrorUser
+        saveSessionEmail(mirrorUser.email)
+
+        // Register FCM token if messaging is configured
+        try {
+            val token = FirebaseMessaging.getInstance().token.await()
+            if (token.isNotBlank()) {
+                repo.updateFcmToken(fbUser.uid, token)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "FCM token registration skipped/unavailable: ${e.message}")
+        }
+
+        startFirestoreUserAndCoupleSync(fbUser.uid)
+        startCoupleDataSync()
+
+        if (email == ADMIN_EMAIL && fbUser.isEmailVerified) {
+            _currentScreen.value = AppScreen.ADMIN
+            loadAdminUsers()
+        } else {
+            _currentScreen.value = AppScreen.MAIN
+        }
+    }
+
+    private fun startFirestoreUserAndCoupleSync(uid: String) {
+        val repo = firestoreRepo ?: return
+        firestoreRoomSyncJobs.forEach { it.cancel() }
+
+        val userJob = viewModelScope.launch {
+            try {
+                repo.observeUser(uid).collect { fsUser ->
+                    if (fsUser != null) {
+                        val current = _currentUser.value
+                        val updated = (current ?: User(email = fsUser.email, username = fsUser.username)).copy(
+                            username = fsUser.username,
+                            avatarUrl = fsUser.photoUrl.orEmpty(),
+                            phone = fsUser.phone.orEmpty(),
+                            inviteCode = fsUser.inviteCode,
+                            connectedPartnerEmail = fsUser.partnerEmail ?: fsUser.partnerUid ?: current?.connectedPartnerEmail,
+                            streakCount = fsUser.streakCount,
+                            snapScore = fsUser.snapScore,
+                            totalMomentsCount = fsUser.totalMomentsCount,
+                            currentTheme = fsUser.currentTheme,
+                            gender = fsUser.bio ?: fsUser.gender.orEmpty()
+                        )
+                        _currentUser.value = updated
+                        repository.upsertLocalMirrorUser(updated)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "observeUser stopped: ${e.message}")
+            }
+        }
+
+        val notifJob = viewModelScope.launch {
+            try {
+                repo.observeNotifications(uid).collect { list ->
+                    _notifications.value = list
+                    list.filter { !it.isRead && notifiedIds.add(it.id) }.forEach { notif ->
+                        HeartNotificationHelper.showNotification(
+                            context = getApplication(),
+                            channelId = HeartNotificationHelper.channelForType(notif.type),
+                            title = notif.title,
+                            body = notif.body
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "observeNotifications stopped: ${e.message}")
+            }
+        }
+
+        val roomsJob = viewModelScope.launch {
+            try {
+                repo.observeCoupleRoomsForCurrentUser().collect { rooms ->
+                    _activeCoupleRoom.value = rooms.firstOrNull()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "observeCoupleRooms stopped: ${e.message}")
+            }
+        }
+
+        firestoreRoomSyncJobs = listOf(userJob, notifJob, roomsJob)
+    }
+
+    fun signInWithGoogleCredentialManager(activityContext: Context) {
+        val manager = googleAuthManager
+        if (manager == null) {
+            _authError.value = "Firebase Auth is not initialized in this environment."
+            return
+        }
         viewModelScope.launch {
-            _isDownloadingUpdate.value = true
-            _updateStatusMessage.value = "Downloading latest APK update... 📥"
-            val success = updateManager.downloadAndInstall(url) { progress ->
-                _updateDownloadProgress.value = progress
+            _isAuthLoading.value = true
+            _authError.value = null
+            when (val res = manager.signInWithGoogle(activityContext)) {
+                is GoogleAuthResult.Success -> {
+                    handleAuthenticatedFirebaseUser(res.user)
+                }
+                is GoogleAuthResult.Error -> {
+                    if (!res.isCancellation) {
+                        _authError.value = res.message
+                    }
+                }
             }
-            _isDownloadingUpdate.value = false
-            if (success) {
-                _updateStatusMessage.value = "Download completed! Handing over to installation manager... 📦"
+            _isAuthLoading.value = false
+        }
+    }
+
+    fun checkForUpdates() {
+        viewModelScope.launch {
+            _isCheckingForUpdates.value = true
+            _updateStatusMessage.value = "Checking GitHub project releases..."
+            val (available, releaseUrl) = updateManager.checkForUpdate(appVersion)
+            _isCheckingForUpdates.value = false
+            _updateAvailable.value = available
+            _updateApkUrl.value = releaseUrl
+            _updateStatusMessage.value = if (available) {
+                "New release found! Open release page to update."
             } else {
-                _updateStatusMessage.value = "Download failed or permission missing. Please verify in-app credentials! ⚠️"
+                "You are already using the latest version."
             }
+        }
+    }
+
+    fun openUpdateReleasePage() {
+        val url = _updateApkUrl.value ?: "https://github.com/DezaCodex/HeartSync-App/releases/latest"
+        val opened = updateManager.openReleasePage(url)
+        _updateStatusMessage.value = if (opened) {
+            "Opening official release page in browser."
+        } else {
+            "Unable to open browser for release link."
         }
     }
 
@@ -160,66 +372,37 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         _updateStatusMessage.value = null
     }
 
-    init {
-        // Run initial loading and splash timer - WhatsApp style persistence loader
-        viewModelScope.launch {
-            repository.ensureProfileExists()
-            delay(2200) // Beautiful splash visual showcase delay
-            
-            // Check if there is an active persistent logged-in user
-            val legacy = database.heartDao().getProfileDirect()
-            val savedEmail = legacy?.loggedInUserEmail ?: ""
-            if (savedEmail.isNotEmpty()) {
-                val dbUser = database.heartDao().getUserByEmail(savedEmail)
-                if (dbUser != null) {
-                    _currentUser.value = dbUser
-                    startCoupleDataSync()
-                    _currentScreen.value = AppScreen.MAIN
-                    return@launch
-                }
-            }
-            // Direct to welcome (the login or signup landing page)
-            _currentScreen.value = AppScreen.WELCOME
-        }
-    }
-
-    // Dynamic database loader for the coupled user pairs
     fun startCoupleDataSync() {
         val user = _currentUser.value ?: return
         val partnerEmail = user.connectedPartnerEmail ?: ""
-        
-        viewModelScope.launch {
-            // Load messages
-            repository.getMessagesForCouple(user.email, partnerEmail)
-                .collect { list -> _messages.value = list }
+        coupleSyncJobs.forEach { it.cancel() }
+
+        val msgJob = viewModelScope.launch {
+            repository.getMessagesForCouple(user.email, partnerEmail).collect { list ->
+                val now = System.currentTimeMillis()
+                _messages.value = list.filter {
+                    !it.isDisappearing || it.isSavedInChat || (it.timestamp + it.durationSecs * 1000L) > now
+                }
+            }
         }
-        viewModelScope.launch {
-            // Load snaps
-            repository.getSnapsForCouple(user.email, partnerEmail)
-                .collect { list -> _snaps.value = list }
+        val snapJob = viewModelScope.launch {
+            repository.getSnapsForCouple(user.email, partnerEmail).collect { list ->
+                _snaps.value = list
+            }
         }
-        viewModelScope.launch {
-            // Load stories (disappearing automatically after 24 hrs matches Snapchat)
+        val storyJob = viewModelScope.launch {
             repository.getStoriesForCouple(user.email, partnerEmail)
-                .map { list -> 
-                    // Filter offline local 24-hr Snapchat expiration (or let users view historic)
+                .map { list ->
                     val now = System.currentTimeMillis()
                     list.filter { it.expiresAt > now || it.isSavedInChat }
                 }
-                .collect { list -> 
-                    if (list.isEmpty() && partnerEmail.isNotEmpty()) {
-                        // Seed high-fidelity moment if empty
-                        repository.shareStory("Sophia", "Walking under cherry blossoms today! 🌸", "MEMORIES", "sophia@heartsync.app")
-                        repository.shareStory("Alex", "Best gelato with my love 🍦❤️", "ROMANCE", "alex@heartsync.app")
-                    }
-                    _stories.value = list 
+                .collect { list ->
+                    _stories.value = list
                 }
         }
+        coupleSyncJobs = listOf(msgJob, snapJob, storyJob)
     }
 
-    // -------------------------------------------------------------
-    // AUTHENTICATION FLOWS (GOOGLE OAUTH, PASSWORD, SMS/OTP)
-    // -------------------------------------------------------------
     fun saveSessionEmail(email: String) {
         viewModelScope.launch {
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
@@ -227,140 +410,54 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun triggerGoogleSignIn(email: String, name: String) {
-        viewModelScope.launch {
-            _authError.value = null
-            val user = repository.registerUser(email, name, "oauth_password", "", true)
-            _currentUser.value = user
-            saveSessionEmail(user.email)
-            
-            // Check admin status first
-            if (user.email == "dezacodex@gmail.com") {
-                _currentScreen.value = AppScreen.ADMIN
-                loadAdminUsers()
-            } else {
-                startCoupleDataSync()
-                _currentScreen.value = AppScreen.MAIN
-            }
-        }
-    }
-
+    /**
+     * Secondary email/password sign-in validates against local salted SHA-256 cache ONLY for pre-registered offline cache;
+     * Cloud Firestore sync requires Firebase Auth Google Sign-In.
+     */
     fun handleNormalLogin(email: String, pas: String) {
         viewModelScope.launch {
             _authError.value = null
-            
-            var isLoginOk = false
-            var errorMsg = ""
-            var metadataUsername = ""
-            var metadataPhone = ""
-            var metadataAge = 0
-            var metadataGender = ""
-
-            // 1. Try to authenticate via MongoDB Atlas NoSQL if active
-            if (isSupabaseConnected) {
-                val supabaseRes = MongoAtlasHelper.loginUser(
-                    url = repository.supabaseUrl,
-                    anonKey = repository.supabaseAnonKey,
-                    email = email,
-                    passwordHash = pas
-                )
-                if (supabaseRes.isSuccess) {
-                    isLoginOk = true
-                    // Extract user metadata in case we need to rebuild local profile
-                    val retJson = supabaseRes.getOrNull()
-                    val userObj = retJson?.optJSONObject("user")
-                    val metadata = userObj?.optJSONObject("user_metadata")
-                    metadataUsername = metadata?.optString("username", "HeartSync User") ?: "HeartSync User"
-                    metadataPhone = metadata?.optString("phone", "") ?: ""
-                    metadataAge = metadata?.optInt("age", 25) ?: 25
-                    metadataGender = metadata?.optString("gender", "Female") ?: "Female"
-                } else {
-                    errorMsg = supabaseRes.exceptionOrNull()?.message ?: "Login failed"
-                }
-            } else {
-                // Offline fallback login validation to local Room
-                val localUser = repository.loginUser(email, pas)
-                if (localUser != null) {
-                    isLoginOk = true
-                } else {
-                    errorMsg = "Invalid local credentials. Please register or verify account details."
-                }
+            if (!SecurityUtils.isValidEmail(email)) {
+                _authError.value = "Please enter a valid email address."
+                return@launch
+            }
+            val localUser = repository.loginUser(email, pas)
+            if (localUser == null) {
+                _authError.value = "Invalid credentials or account not registered on device. Please use Google Sign-In for cloud access."
+                return@launch
+            }
+            if (!localUser.isOtpVerified) {
+                val otp = SecurityUtils.generateSixDigitCode()
+                pendingOtpCode = otp
+                pendingOtpExpiryMs = System.currentTimeMillis() + 5 * 60 * 1000L
+                tempPhoneVerifiedEmail = localUser.email
+                _currentScreen.value = AppScreen.OTP_VERIFY
+                _authError.value = "Verification code required. Please confirm your account."
+                return@launch
             }
 
-            if (isLoginOk) {
-                // Fetch or Create local user row matching logged-in user
-                var localUser = database.heartDao().getUserByEmail(email)
-                if (localUser == null) {
-                    // Reconstruct from Supabase details or default
-                    localUser = repository.registerUser(
-                        email = email,
-                        username = metadataUsername.ifEmpty { "HeartSync User" },
-                        passwordHash = pas,
-                        phone = metadataPhone,
-                        isGoogleUser = false,
-                        age = metadataAge,
-                        gender = metadataGender
-                    )
-                }
-
-                // If logged in via active Supabase account, bypass local verification checks since Supabase verified it
-                if (isSupabaseConnected) {
-                    localUser = localUser.copy(isOtpVerified = true)
-                    repository.updateUser(localUser)
-                }
-
-                if (!localUser.isOtpVerified) {
-                    tempPhoneVerifiedEmail = localUser.email
-                    _currentScreen.value = AppScreen.OTP_VERIFY
-                    _authError.value = "Your account requires confirmation. Please enter verification PIN OTP (e.g. 2212 or 1234) 🔑"
-                    return@launch
-                }
-
-                _currentUser.value = localUser
-                saveSessionEmail(localUser.email)
-
-                // Sync data to MongoDB Atlas NoSQL database too
-                if (isSupabaseConnected) {
-                    MongoAtlasHelper.storeUserDataInDatabase(
-                        url = repository.supabaseUrl,
-                        anonKey = repository.supabaseAnonKey,
-                        email = localUser.email,
-                        username = localUser.username,
-                        phone = localUser.phone,
-                        age = localUser.age,
-                        gender = localUser.gender,
-                        inviteCode = localUser.inviteCode,
-                        isVerified = true
-                    )
-                }
-
-                // Route to appropriate screen (directly with MAIN as requested)
-                if (localUser.email == "dezacodex@gmail.com") {
-                    _currentScreen.value = AppScreen.ADMIN
-                    loadAdminUsers()
-                } else {
-                    startCoupleDataSync()
-                    _currentScreen.value = AppScreen.MAIN
-                }
-            } else {
-                _authError.value = errorMsg
-            }
+            _currentUser.value = localUser
+            saveSessionEmail(localUser.email)
+            startCoupleDataSync()
+            _currentScreen.value = AppScreen.MAIN
         }
     }
 
     fun handleNormalSignUp(name: String, email: String, pas: String, phone: String, age: Int, gender: String) {
         viewModelScope.launch {
             _authError.value = null
-            if (name.isEmpty() || email.isEmpty() || pas.isEmpty()) {
-                _authError.value = "Please fill in all details"
+            if (name.isBlank() || !SecurityUtils.isValidEmail(email)) {
+                _authError.value = "Please enter a valid display name and email."
                 return@launch
             }
-
-            // Always write locally to our Room database so the app functions seamlessly
+            if (!SecurityUtils.isValidPasswordStrength(pas)) {
+                _authError.value = "Password must be at least 8 characters and include letters and numbers."
+                return@launch
+            }
             val newUser = repository.registerUser(
                 email = email,
                 username = name,
-                passwordHash = pas,
+                rawOrHashedPassword = pas,
                 phone = phone,
                 isGoogleUser = false,
                 age = age,
@@ -369,44 +466,10 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             _currentUser.value = newUser
             saveSessionEmail(newUser.email)
             tempPhoneVerifiedEmail = newUser.email
-
-            // 2. Perform MongoDB Atlas registration
-            if (isSupabaseConnected) {
-                val result = MongoAtlasHelper.signUpUser(
-                    url = repository.supabaseUrl,
-                    anonKey = repository.supabaseAnonKey,
-                    email = email,
-                    passwordHash = pas,
-                    username = name,
-                    phone = phone,
-                    age = age,
-                    gender = gender
-                )
-                if (result.isSuccess) {
-                    // Try to save profile metadata to db tables straight away
-                    MongoAtlasHelper.storeUserDataInDatabase(
-                        url = repository.supabaseUrl,
-                        anonKey = repository.supabaseAnonKey,
-                        email = email,
-                        username = name,
-                        phone = phone,
-                        age = age,
-                        gender = gender,
-                        inviteCode = newUser.inviteCode,
-                        isVerified = false
-                    )
-
-                    _currentScreen.value = AppScreen.OTP_VERIFY
-                    _authError.value = "Secure MongoDB Atlas verification PIN code is ready for $email! Please verify 🔑✉️"
-                } else {
-                    val exMsg = result.exceptionOrNull()?.message ?: "Supabase registration failed"
-                    _authError.value = "Security Provider Error: $exMsg ⚠️"
-                }
-            } else {
-                // If Supabase is not connected yet, fall back to offline simulation
-                _currentScreen.value = AppScreen.OTP_VERIFY
-                _authError.value = "Offline secure sandbox registered successfully! Standard safety OTP '2212' or '1234' is required to confirm your account 🔑🌸"
-            }
+            pendingOtpCode = SecurityUtils.generateSixDigitCode()
+            pendingOtpExpiryMs = System.currentTimeMillis() + 5 * 60 * 1000L
+            _currentScreen.value = AppScreen.OTP_VERIFY
+            _authError.value = "Local account created. Use Google Sign-In to enable Cloud Firestore sync & multi-device notifications."
         }
     }
 
@@ -414,140 +477,109 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _authError.value = null
             val email = tempPhoneVerifiedEmail.ifEmpty { _currentUser.value?.email ?: "" }
-            
-            var isVerifiedSuccessfully = false
-            var errorDetails = ""
-
-            // Accept standard testing bypasses OR perform real verification against Supabase Auth API
-            if (code == "2212" || code == "1234") {
-                isVerifiedSuccessfully = true
-            } else if (isSupabaseConnected) {
-                val verifyRes = MongoAtlasHelper.verifyOtp(
-                    url = repository.supabaseUrl,
-                    anonKey = repository.supabaseAnonKey,
-                    email = email,
-                    otpToken = code
-                )
-                if (verifyRes.isSuccess) {
-                    isVerifiedSuccessfully = true
-                } else {
-                    errorDetails = verifyRes.exceptionOrNull()?.message ?: "OTP code is incorrect"
-                }
+            val expected = pendingOtpCode
+            if (expected.isNullOrBlank() || System.currentTimeMillis() > pendingOtpExpiryMs || code.trim() != expected) {
+                _authError.value = "Invalid or expired verification code."
+                return@launch
             }
-
-            if (isVerifiedSuccessfully) {
-                val user = database.heartDao().getUserByEmail(email)
-                if (user != null) {
-                    val updated = user.copy(isOtpVerified = true)
-                    repository.updateUser(updated)
-                    _currentUser.value = updated
-                    saveSessionEmail(updated.email)
-                    
-                    // Synchronize and upsert user row inside MongoDB Atlas users collection
-                    if (isSupabaseConnected) {
-                        MongoAtlasHelper.storeUserDataInDatabase(
-                            url = repository.supabaseUrl,
-                            anonKey = repository.supabaseAnonKey,
-                            email = user.email,
-                            username = user.username,
-                            phone = user.phone,
-                            age = user.age,
-                            gender = user.gender,
-                            inviteCode = user.inviteCode,
-                            isVerified = true
-                        )
-                    }
-
-                    startCoupleDataSync()
-                    _currentScreen.value = AppScreen.MAIN
-                    _authError.value = "Sanctuary account confirmed! Welcome home! 🌸"
-                } else {
-                    _authError.value = "Error retrieving local account. Please register again."
-                }
+            pendingOtpCode = null
+            val user = database.heartDao().getUserByEmail(email)
+            if (user != null) {
+                val updated = user.copy(isOtpVerified = true)
+                repository.updateUser(updated)
+                _currentUser.value = updated
+                saveSessionEmail(updated.email)
+                startCoupleDataSync()
+                _currentScreen.value = AppScreen.MAIN
             } else {
-                if (isSupabaseConnected) {
-                    _authError.value = "Verification failed: $errorDetails ⚠️ Please verify the code in your email."
-                } else {
-                    _authError.value = "Incorrect OTP. Try entering '2212' or '1234' for simulator."
-                }
+                _authError.value = "Account not found. Please sign in with Google."
             }
         }
     }
 
-    // Interactive Forgot Password Flow with OTP & Password Updating
     fun startForgotPasswordReset(email: String) {
         viewModelScope.launch {
-            val user = database.heartDao().getUserByEmail(email)
+            val user = database.heartDao().getUserByEmail(email.trim().lowercase())
             if (user == null) {
-                _authError.value = "No registered account found with email ID: $email"
+                _authError.value = "No registered local account found for $email"
                 return@launch
             }
-            tempForgotEmail = email
-            _forgotPasswordPhase.value = 2 // Go to OTP verification
-            _authError.value = "Forgot Password OTP key simulated and dispatched to $email! (Use '2212' or '1234')"
+            tempForgotEmail = user.email
+            pendingOtpCode = SecurityUtils.generateSixDigitCode()
+            pendingOtpExpiryMs = System.currentTimeMillis() + 5 * 60 * 1000L
+            _forgotPasswordPhase.value = 2
+            _authError.value = "Password reset code generated for $email."
         }
     }
 
     fun verifyForgotOtp(otp: String) {
-        if (otp == "2212" || otp == "1234") {
-            _forgotPasswordPhase.value = 3 // Go to new password input
-            _authError.value = "OTP Code validated! Create your new secure password."
+        val expected = pendingOtpCode
+        if (!expected.isNullOrBlank() && System.currentTimeMillis() <= pendingOtpExpiryMs && otp.trim() == expected) {
+            pendingOtpCode = null
+            _forgotPasswordPhase.value = 3
+            _authError.value = "Code validated. Create a new strong password."
         } else {
-            _authError.value = "Incorrect Forgot OTP pin. Try '2212' or '1234' to bypass."
+            _authError.value = "Invalid or expired verification code."
         }
     }
 
     fun submitNewPassword(newPass: String) {
         viewModelScope.launch {
-            if (newPass.length < 4) {
-                _authError.value = "Password must be at least 4 characters."
+            if (!SecurityUtils.isValidPasswordStrength(newPass)) {
+                _authError.value = "Password must be at least 8 characters with letters and numbers."
                 return@launch
             }
-            val email = tempForgotEmail
-            val user = database.heartDao().getUserByEmail(email)
-            if (user != null) {
-                val updated = user.copy(passwordHash = newPass, isOtpVerified = true)
-                repository.updateUser(updated)
-                _currentUser.value = updated
-                saveSessionEmail(updated.email)
-                
-                _forgotPasswordPhase.value = 1 // Reset
-                _authError.value = "Password recovered successfully! You are now logged in securely."
-                
-                startCoupleDataSync()
-                _currentScreen.value = AppScreen.MAIN
-            }
+            val user = database.heartDao().getUserByEmail(tempForgotEmail) ?: return@launch
+            val hashed = SecurityUtils.hashPassword(newPass)
+            val updated = user.copy(passwordHash = hashed, isOtpVerified = true)
+            repository.updateUser(updated)
+            _currentUser.value = updated
+            saveSessionEmail(updated.email)
+            _forgotPasswordPhase.value = 1
+            startCoupleDataSync()
+            _currentScreen.value = AppScreen.MAIN
         }
     }
 
-    fun triggerPasswordReset(email: String) {
-        startForgotPasswordReset(email)
-    }
+    fun triggerPasswordReset(email: String) = startForgotPasswordReset(email)
 
     // -------------------------------------------------------------
-    // PAIRING FLOW (SECRET CODE CONNECTING AS COUPLE)
+    // PAIRING FLOW (CLOUD FIRESTORE INVITE CODE + LOCAL CACHE)
     // -------------------------------------------------------------
     fun inviteAndLinkCouple(code: String) {
         viewModelScope.launch {
             _authError.value = null
-            val self = _currentUser.value ?: return@launch
-            
-            if (code == self.inviteCode) {
-                _authError.value = "You cannot pair with your own code!"
-                return@launch
+            val trimmed = code.trim().uppercase()
+            val fsRepo = firestoreRepo
+            if (firebaseAuth?.currentUser != null && fsRepo != null) {
+                val res = fsRepo.pairWithInviteCode(trimmed)
+                if (res.isSuccess) {
+                    val room = res.getOrNull()
+                    _activeCoupleRoom.value = room
+                    _pairingCelebrationPartnerName.value = room?.partnerName ?: "Partner"
+                    _currentScreen.value = AppScreen.MAIN
+                    return@launch
+                } else {
+                    _authError.value = res.exceptionOrNull()?.localizedMessage ?: "Pairing failed."
+                    return@launch
+                }
             }
 
-            val partnerUser = repository.getUserByInviteCode(code)
-            val linked = repository.linkCouple(self.email, code)
+            val self = _currentUser.value ?: return@launch
+            if (trimmed == self.inviteCode) {
+                _authError.value = "You cannot pair with your own code."
+                return@launch
+            }
+            val partnerUser = repository.getUserByInviteCode(trimmed)
+            val linked = repository.linkCouple(self.email, trimmed)
             if (linked) {
-                // Refresh self session
                 val updatedSelf = database.heartDao().getUserByEmail(self.email) ?: self
                 _currentUser.value = updatedSelf
-                _pairingCelebrationPartnerName.value = partnerUser?.username ?: "Your Soulmate"
+                _pairingCelebrationPartnerName.value = partnerUser?.username ?: "Partner"
                 startCoupleDataSync()
                 _currentScreen.value = AppScreen.MAIN
             } else {
-                _authError.value = "Partner code is invalid or already connected to another soulmate."
+                _authError.value = "Partner code is invalid or already paired."
             }
         }
     }
@@ -555,15 +587,19 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     fun generatePairingOtp() {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
-            val digits = (100000..999999).random().toString()
-            val expiry = System.currentTimeMillis() + 5 * 60 * 1000L // 5 minutes
+            val digits = SecurityUtils.generateSixDigitCode()
+            val expiry = System.currentTimeMillis() + 5 * 60 * 1000L
             val updated = user.copy(pairingOtp = digits, pairingOtpExpiry = expiry)
             repository.updateUser(updated)
             _currentUser.value = updated
-            _authError.value = "Your 6-digit Connection OTP generated successfully! 🔑"
+            _authError.value = "6-digit pairing OTP generated (valid for 5 minutes)."
         }
     }
 
+    /**
+     * Pairs only with an existing verified partner record matching email + unexpired OTP.
+     * Never fabricates missing users or approves forged OTPs (fixes SEC-CRIT-05).
+     */
     fun connectCoupleByEmailAndOtp(partnerEmail: String, otpCode: String) {
         viewModelScope.launch {
             _authError.value = null
@@ -571,76 +607,43 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             val trimEmail = partnerEmail.trim().lowercase()
             val trimOtp = otpCode.trim()
 
-            if (trimEmail.isEmpty() || trimOtp.isEmpty()) {
-                _authError.value = "Please enter both partner email and OTP code."
+            if (!SecurityUtils.isValidEmail(trimEmail) || trimOtp.length < 4) {
+                _authError.value = "Please enter a valid partner email and OTP code."
                 return@launch
             }
-
             if (trimEmail == self.email.lowercase()) {
-                _authError.value = "You cannot pair with your own email!"
+                _authError.value = "You cannot pair with your own email."
                 return@launch
             }
 
-            // Look up partner in Room
-            var partnerUser = database.heartDao().getUserByEmail(trimEmail)
-
-            // If partner doesn't exist, help them pair by mock-registering so offline & fallback sandboxing works flawlessly
+            val partnerUser = database.heartDao().getUserByEmail(trimEmail)
             if (partnerUser == null) {
-                val usernamePart = trimEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
-                partnerUser = repository.registerUser(
-                    email = trimEmail,
-                    username = usernamePart,
-                    passwordHash = "password",
-                    phone = "",
-                    isGoogleUser = false,
-                    age = 24,
-                    gender = "Holding hands forever & always ❤️"
-                )
-                // Assign matching OTP so the mock sandbox connection succeeds
-                partnerUser = partnerUser.copy(pairingOtp = trimOtp, pairingOtpExpiry = System.currentTimeMillis() + 5 * 60 * 1000L)
-                repository.updateUser(partnerUser)
+                _authError.value = "Partner account not found. Ask your partner to share their HeartSync Invite Code for cloud pairing."
+                return@launch
             }
-
             val expectedOtp = partnerUser.pairingOtp
-            val expiry = partnerUser.pairingOtpExpiry
-
-            if (expectedOtp == null || expectedOtp != trimOtp) {
-                _authError.value = "Invalid or incorrect OTP code. Please enter the generated 6-digit code shown on your partner's screen."
+            if (expectedOtp.isNullOrBlank() || expectedOtp != trimOtp) {
+                _authError.value = "Invalid pairing OTP code."
+                return@launch
+            }
+            if (partnerUser.pairingOtpExpiry < System.currentTimeMillis()) {
+                _authError.value = "This OTP code has expired. Request a new code."
                 return@launch
             }
 
-            if (expiry < System.currentTimeMillis()) {
-                _authError.value = "This OTP code has expired! Please request a new code on your partner's device."
-                return@launch
-            }
-
-            // Sync coupling configuration updates
             val updatedPartner = partnerUser.copy(
                 connectedPartnerEmail = self.email,
-                pairingOtp = null, // One-time use
+                pairingOtp = null,
                 pairingOtpExpiry = 0
             )
             val updatedSelf = self.copy(
                 connectedPartnerEmail = trimEmail,
-                streakCount = 1,
-                snapScore = 15
+                streakCount = maxOf(1, self.streakCount),
+                snapScore = self.snapScore + 15
             )
-
             repository.updateUser(updatedPartner)
             repository.updateUser(updatedSelf)
             _currentUser.value = updatedSelf
-
-            // Synchronize lovers profile info
-            val profileDirect = database.heartDao().getProfileDirect() ?: LoversProfile()
-            repository.updateProfile(
-                profileDirect.copy(
-                    myName = self.username,
-                    partnerName = partnerUser.username,
-                    streakCount = 1,
-                    totalScore = 15
-                )
-            )
-
             _pairingCelebrationPartnerName.value = partnerUser.username
             startCoupleDataSync()
             _currentScreen.value = AppScreen.MAIN
@@ -651,8 +654,15 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val self = _currentUser.value ?: return@launch
             repository.removeConnection(self.email)
+            firebaseAuth?.currentUser?.uid?.let { uid ->
+                firestoreRepo?.updateUserFields(
+                    uid,
+                    mapOf("partnerUid" to "", "partnerEmail" to "", "coupleRoomId" to "")
+                )
+            }
             val updatedSelf = database.heartDao().getUserByEmail(self.email) ?: self
             _currentUser.value = updatedSelf
+            _activeCoupleRoom.value = null
             _messages.value = emptyList()
             _snaps.value = emptyList()
             _stories.value = emptyList()
@@ -667,23 +677,30 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         viewModelScope.launch {
+            callEngine.endCallSession()
+            _callState.value = "IDLE"
+            coupleSyncJobs.forEach { it.cancel() }
+            firestoreRoomSyncJobs.forEach { it.cancel() }
+            googleAuthManager?.signOut()
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(loggedInUserEmail = ""))
             _currentUser.value = null
+            _firebaseUser.value = null
+            _activeCoupleRoom.value = null
             _authError.value = null
             _currentScreen.value = AppScreen.WELCOME
         }
     }
 
     // -------------------------------------------------------------
-    // CHAT SYSTEM CONTROLLER
+    // CHAT & STREAK SYSTEM
     // -------------------------------------------------------------
     fun sendMessage(text: String, isDisappearing: Boolean = false, duration: Int = 10, msgEffect: String = "") {
         val user = _currentUser.value ?: return
+        if (text.isBlank()) return
         val partnerEmail = user.connectedPartnerEmail ?: ""
-        
+
         viewModelScope.launch {
-            // Send actual user-to-user private message
             repository.sendMessage(
                 sender = user.username,
                 text = text,
@@ -693,16 +710,36 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 receiverEmail = partnerEmail,
                 msgEffect = msgEffect
             )
-            
-            // Increment streaks count / score dynamically
+            repository.recordSnapStreakActivity(user.email)
+
+            val room = _activeCoupleRoom.value
+            val fbUid = firebaseAuth?.currentUser?.uid
+            val fsRepo = firestoreRepo
+            if (room != null && fbUid != null && fsRepo != null) {
+                fsRepo.sendMessage(
+                    roomId = room.roomId,
+                    memberUids = room.memberUids,
+                    senderName = user.username,
+                    text = text,
+                    isDisappearing = isDisappearing,
+                    durationSecs = duration,
+                    msgEffect = msgEffect
+                )
+                val partnerUid = room.memberUids.firstOrNull { it != fbUid }
+                if (!partnerUid.isNullOrBlank()) {
+                    fsRepo.pushNotificationToUser(
+                        recipientUid = partnerUid,
+                        coupleRoomId = room.roomId,
+                        senderName = user.username,
+                        type = "MESSAGE",
+                        title = "${user.username} sent a message",
+                        body = if (isDisappearing) "Disappearing message" else text.take(120)
+                    )
+                }
+            }
+
             val updatedSelf = database.heartDao().getUserByEmail(user.email) ?: user
             _currentUser.value = updatedSelf
-            
-            // Simulate partner responses
-            if (_isPartnerSimulating.value && partnerEmail.isNotEmpty()) {
-                delay(1500)
-                generateSimulatedResponse(text, partnerEmail)
-            }
         }
     }
 
@@ -719,24 +756,19 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteMessage(id: Int) {
-        viewModelScope.launch {
-            repository.deleteMessage(id)
-        }
+        viewModelScope.launch { repository.deleteMessage(id) }
     }
 
     fun clearChat() {
-        viewModelScope.launch {
-            repository.clearChat()
-        }
+        viewModelScope.launch { repository.clearChat() }
     }
 
     // -------------------------------------------------------------
-    // SNAP SYSTEM CONTROLLER
+    // SNAPS & SCREENSHOT ALERTS
     // -------------------------------------------------------------
     fun sendSnap(snapType: String, description: String, durationSecs: Int = 10) {
         val user = _currentUser.value ?: return
         val partnerEmail = user.connectedPartnerEmail ?: ""
-        
         viewModelScope.launch {
             repository.sendSnap(
                 sender = user.username,
@@ -746,37 +778,53 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 senderEmail = user.email,
                 receiverEmail = partnerEmail
             )
-            // Restore score
-            val updatedSelf = database.heartDao().getUserByEmail(user.email) ?: user
-            _currentUser.value = updatedSelf
+            repository.recordSnapStreakActivity(user.email)
 
-            // Partner simulator returns snap
-            if (_isPartnerSimulating.value && partnerEmail.isNotEmpty()) {
-                delay(2000)
-                val responseItems = listOf(
-                    "Send you a sweet selfie with strawberry filters! 🍓",
-                    "Cute greeting video blowing kisses! 💋📹",
-                    "A picture of my comfy mug coffee! ☕"
+            val room = _activeCoupleRoom.value
+            val fbUid = firebaseAuth?.currentUser?.uid
+            val fsRepo = firestoreRepo
+            if (room != null && fbUid != null && fsRepo != null) {
+                fsRepo.sendSnap(
+                    roomId = room.roomId,
+                    memberUids = room.memberUids,
+                    senderName = user.username,
+                    snapType = snapType,
+                    description = description,
+                    mediaUrl = null,
+                    durationSec = durationSecs
                 )
-                repository.sendSnap(
-                    sender = "Sophia",
-                    snapType = if (Random.nextBoolean()) "IMAGE" else "VIDEO",
-                    description = responseItems.random(),
-                    durationSec = 10,
-                    senderEmail = partnerEmail,
-                    receiverEmail = user.email
-                )
+                val partnerUid = room.memberUids.firstOrNull { it != fbUid }
+                if (!partnerUid.isNullOrBlank()) {
+                    fsRepo.pushNotificationToUser(
+                        recipientUid = partnerUid,
+                        coupleRoomId = room.roomId,
+                        senderName = user.username,
+                        type = "SNAP",
+                        title = "New Snap from ${user.username}",
+                        body = description.take(100)
+                    )
+                }
             }
+            _currentUser.value = database.heartDao().getUserByEmail(user.email) ?: user
         }
     }
 
     fun openSnap(snap: CoupleSnap) {
         if (snap.viewed) return
+        val user = _currentUser.value
         viewModelScope.launch {
             _activeViewingSnap.value = snap
             _viewingSecondsRemaining.value = snap.durationSec
-            repository.viewSnapAndTriggerStreak(snap.id)
-
+            repository.viewSnapAndTriggerStreak(snap.id, user?.email)
+            user?.email?.let { email ->
+                _currentUser.value = database.heartDao().getUserByEmail(email)
+            }
+            HeartNotificationHelper.showNotification(
+                context = getApplication(),
+                channelId = HeartNotificationHelper.CHANNEL_STREAKS,
+                title = "Streak Updated!",
+                body = "Your couple streak is now ${_currentUser.value?.streakCount ?: 1} days."
+            )
             while (_viewingSecondsRemaining.value > 0) {
                 delay(1000)
                 _viewingSecondsRemaining.value -= 1
@@ -791,25 +839,40 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             val user = _currentUser.value ?: return@launch
             val partnerEmail = user.connectedPartnerEmail ?: ""
             repository.sendMessage(
-                sender = "SYSTEM 🚨",
-                text = "${user.username} took a screenshot of the Snap! 🔥📸",
+                sender = "SYSTEM",
+                text = "${user.username} captured a screenshot of your Snap.",
                 isDisappearing = false,
                 senderEmail = "system@heartsync.app",
                 receiverEmail = partnerEmail
+            )
+            HeartNotificationHelper.showNotification(
+                context = getApplication(),
+                channelId = HeartNotificationHelper.CHANNEL_SNAPS,
+                title = "Screenshot Alert",
+                body = "${user.username} took a screenshot of a Snap."
             )
         }
     }
 
     fun saveSnapInChat(snapId: Int, pinned: Boolean) {
-        viewModelScope.launch {
-            repository.saveSnapToChat(snapId, pinned)
-        }
+        viewModelScope.launch { repository.saveSnapToChat(snapId, pinned) }
     }
 
     fun downloadSnapToLocalStorage(snapId: Int) {
         viewModelScope.launch {
-            repository.downloadSnapToLocal(snapId, "/storage/emulated/0/Download/heartsync_snap_${snapId}.jpg")
-            _authError.value = "Moment saved to Local Storage under /Download folder! 📁💾"
+            val targetSnap = _snaps.value.firstOrNull { it.id == snapId }
+            val result = storageRepository.saveMediaToDeviceDownloads(
+                filename = "heartsync_snap_$snapId.txt",
+                mediaUrl = null,
+                fallbackTextSummary = "HeartSync Snap #$snapId\nFrom: ${targetSnap?.senderName ?: "Partner"}\nCaption: ${targetSnap?.description ?: ""}"
+            )
+            if (result.isSuccess) {
+                val realPath = result.getOrThrow()
+                repository.downloadSnapToLocal(snapId, realPath)
+                _authError.value = "Snap saved to Downloads: $realPath"
+            } else {
+                _authError.value = "Unable to save snap to device storage."
+            }
         }
     }
 
@@ -818,13 +881,11 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteSnap(snapId: Int) {
-        viewModelScope.launch {
-            repository.deleteSnap(snapId)
-        }
+        viewModelScope.launch { repository.deleteSnap(snapId) }
     }
 
     // -------------------------------------------------------------
-    // SOCIAL STORIES / MOMENTS MODULE
+    // STORIES / MOMENTS
     // -------------------------------------------------------------
     fun shareStory(description: String, category: String) {
         val user = _currentUser.value ?: return
@@ -835,44 +896,55 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 imageType = category,
                 senderEmail = user.email
             )
-            val updatedSelf = database.heartDao().getUserByEmail(user.email) ?: user
-            _currentUser.value = updatedSelf
+            val room = _activeCoupleRoom.value
+            val fsRepo = firestoreRepo
+            if (room != null && fsRepo != null) {
+                fsRepo.sendStory(room.roomId, room.memberUids, user.username, description, category, null)
+            }
+            _currentUser.value = database.heartDao().getUserByEmail(user.email) ?: user
         }
     }
 
     fun saveStoryToHighlights(storyId: Int, pin: Boolean) {
         viewModelScope.launch {
             repository.saveStoryToChat(storyId, pin)
-            _authError.value = if (pin) "Saved to highlights album! 💖" else "Removed from highlights."
+            _authError.value = if (pin) "Saved to highlights album!" else "Removed from highlights."
         }
     }
 
     fun downloadStoryToLocalStorage(storyId: Int) {
         viewModelScope.launch {
-            repository.downloadStoryToLocal(storyId, "/storage/emulated/0/Download/heartsync_story_${storyId}.jpg")
-            _authError.value = "Story saved to Local Gallery device storage! 📸🖼️"
+            val story = _stories.value.firstOrNull { it.id == storyId }
+            val result = storageRepository.saveMediaToDeviceDownloads(
+                filename = "heartsync_story_$storyId.txt",
+                mediaUrl = null,
+                fallbackTextSummary = "HeartSync Story #$storyId\nFrom: ${story?.senderName ?: "Partner"}\nCategory: ${story?.imageType ?: ""}\nNote: ${story?.description ?: ""}"
+            )
+            if (result.isSuccess) {
+                val path = result.getOrThrow()
+                repository.downloadStoryToLocal(storyId, path)
+                _authError.value = "Story exported to Downloads: $path"
+            } else {
+                _authError.value = "Failed exporting story to device storage."
+            }
         }
     }
 
     // -------------------------------------------------------------
-    // PROFILE SETTINGS & CUSTOM LAYOUT THEMES
+    // PROFILE SETTINGS, THEMES & FIREBASE STORAGE AVATAR UPLOAD
     // -------------------------------------------------------------
     fun updateProfileName(myNewName: String, partnerNewName: String, anniversary: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
-            // Update custom user properties
             val u = user.copy(username = myNewName)
             repository.updateUser(u)
             _currentUser.value = u
-
-            // Update legacy LoversProfile
+            firebaseAuth?.currentUser?.uid?.let { uid ->
+                firestoreRepo?.updateUserFields(uid, mapOf("username" to myNewName, "anniversaryDate" to anniversary))
+            }
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(
-                legacy.copy(
-                    myName = myNewName,
-                    partnerName = partnerNewName,
-                    anniversaryDate = anniversary
-                )
+                legacy.copy(myName = myNewName, partnerName = partnerNewName, anniversaryDate = anniversary)
             )
         }
     }
@@ -883,10 +955,35 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             val u = user.copy(currentTheme = newTheme)
             repository.updateUser(u)
             _currentUser.value = u
-
-            // Update legacy LoversProfile theme
+            firebaseAuth?.currentUser?.uid?.let { uid ->
+                firestoreRepo?.updateUserFields(uid, mapOf("currentTheme" to newTheme))
+            }
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(currentTheme = newTheme))
+        }
+    }
+
+    fun uploadAndSaveAvatar(uri: Uri) {
+        val uid = firebaseAuth?.currentUser?.uid
+        if (uid == null) {
+            updateAvatarUrl(uri.toString())
+            return
+        }
+        viewModelScope.launch {
+            when (val res = storageRepository.uploadImageUri("avatars", uid, uri)) {
+                is StorageUploadResult.Success -> {
+                    updateAvatarUrl(res.downloadUrl)
+                    _authError.value = "Avatar uploaded to Firebase Storage!"
+                }
+                is StorageUploadResult.RequiresConfiguration -> {
+                    updateAvatarUrl(uri.toString())
+                    _authError.value = res.reason
+                }
+                is StorageUploadResult.Error -> {
+                    updateAvatarUrl(uri.toString())
+                    _authError.value = "Saved locally; cloud bucket error: ${res.message}"
+                }
+            }
         }
     }
 
@@ -896,8 +993,9 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
             val u = user.copy(avatarUrl = url)
             repository.updateUser(u)
             _currentUser.value = u
-
-            // Also update legacy LoversProfile
+            firebaseAuth?.currentUser?.uid?.let { uid ->
+                firestoreRepo?.updateUserFields(uid, mapOf("photoUrl" to url.take(1024)))
+            }
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(avatarUrl = url))
         }
@@ -914,31 +1012,48 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
             val oldEmail = user.email
+            val cleanNewEmail = newEmail.trim().lowercase()
             val updatedUser = user.copy(
                 username = newName,
-                email = newEmail.trim().lowercase(),
+                email = cleanNewEmail,
                 phone = newPhone.trim(),
                 age = newAge,
-                gender = newBio.trim(), // Use gender to store status text/bio
+                gender = newBio.trim(),
                 avatarUrl = newAvatarUrl.trim()
             )
-
-            if (oldEmail.lowercase() != newEmail.trim().lowercase()) {
+            if (oldEmail.lowercase() != cleanNewEmail) {
                 repository.updateUser(updatedUser)
                 database.heartDao().deleteUserByEmail(oldEmail)
-                saveSessionEmail(newEmail.trim().lowercase())
+                // Cascade update connected partner reference if paired
+                user.connectedPartnerEmail?.let { pEmail ->
+                    database.heartDao().getUserByEmail(pEmail)?.let { partner ->
+                        repository.updateUser(partner.copy(connectedPartnerEmail = cleanNewEmail))
+                    }
+                }
+                saveSessionEmail(cleanNewEmail)
             } else {
                 repository.updateUser(updatedUser)
             }
-            
             _currentUser.value = updatedUser
 
-            // Update legacy LoversProfile for consistency
+            firebaseAuth?.currentUser?.uid?.let { uid ->
+                firestoreRepo?.updateUserFields(
+                    uid,
+                    mapOf(
+                        "username" to newName.take(60),
+                        "phone" to newPhone.trim().take(32),
+                        "age" to newAge.coerceIn(0, 150),
+                        "bio" to newBio.trim().take(240),
+                        "photoUrl" to newAvatarUrl.trim().take(1024)
+                    )
+                )
+            }
+
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(
                 legacy.copy(
                     myName = newName,
-                    loggedInUserEmail = newEmail.trim().lowercase(),
+                    loggedInUserEmail = cleanNewEmail,
                     avatarUrl = newAvatarUrl.trim(),
                     statusText = newBio.trim()
                 )
@@ -949,6 +1064,10 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     fun connectCoupleByEmailAndCode(partnerEmail: String, partnerCode: String) {
         viewModelScope.launch {
             _authError.value = null
+            if (firebaseAuth?.currentUser != null && firestoreRepo != null) {
+                inviteAndLinkCouple(partnerCode)
+                return@launch
+            }
             val self = _currentUser.value ?: return@launch
             val trimEmail = partnerEmail.trim().lowercase()
             val trimCode = partnerCode.trim().uppercase()
@@ -957,37 +1076,26 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 _authError.value = "Please complete both email and exchange code fields."
                 return@launch
             }
-
             if (trimEmail == self.email.lowercase()) {
                 _authError.value = "You cannot pair with your own email!"
                 return@launch
             }
-
-            // Find partner by email directly in DB
             val partnerUser = database.heartDao().getUserByEmail(trimEmail)
             if (partnerUser == null) {
                 _authError.value = "No registered user found with the email: $trimEmail"
                 return@launch
             }
-
-            // Normalize and verify codes (support both numeric-only block or original prefix HS-)
             val cleanPartnerInvite = partnerUser.inviteCode.replace("HS-", "").trim().uppercase()
             val cleanEnteredCode = trimCode.replace("HS-", "").trim().uppercase()
-
             if (cleanPartnerInvite != cleanEnteredCode) {
-                _authError.value = "Exchange code is incorrect for this user email."
+                _authError.value = "Exchange code is incorrect."
                 return@launch
             }
-
-            // Check if already coupled
             if (partnerUser.connectedPartnerEmail != null && partnerUser.connectedPartnerEmail != self.email) {
-                _authError.value = "Your partner is already paired with another soulmate."
+                _authError.value = "Your partner is already paired with another account."
                 return@launch
             }
-
-            // Link them together!
-            val linked = repository.linkCouple(self.email, partnerUser.inviteCode)
-            if (linked) {
+            if (repository.linkCouple(self.email, partnerUser.inviteCode)) {
                 val updatedSelf = database.heartDao().getUserByEmail(self.email) ?: self
                 _currentUser.value = updatedSelf
                 _pairingCelebrationPartnerName.value = partnerUser.username
@@ -1003,18 +1111,20 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(statusText = status))
-
             val self = _currentUser.value
             if (self != null) {
                 val updated = self.copy(gender = status)
                 repository.updateUser(updated)
                 _currentUser.value = updated
             }
+            firebaseAuth?.currentUser?.uid?.let { uid ->
+                firestoreRepo?.updateUserFields(uid, mapOf("bio" to status.take(240)))
+            }
         }
     }
 
     // -------------------------------------------------------------
-    // PRIVATE CONNECTION CALLS BOOTH SIMULATOR
+    // CALLS: DISCORD-STYLE MULTI-STREAM WEBRTC + NOTIFICATIONS
     // -------------------------------------------------------------
     fun updateRingtoneSettings(
         notificationTone: String,
@@ -1024,14 +1134,15 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
-            val updated = legacy.copy(
-                notificationTone = notificationTone,
-                callRingtone = callRingtone,
-                videoCallRingtone = videoCallRingtone,
-                vibrationIntensity = vibration
+            repository.updateProfile(
+                legacy.copy(
+                    notificationTone = notificationTone,
+                    callRingtone = callRingtone,
+                    videoCallRingtone = videoCallRingtone,
+                    vibrationIntensity = vibration
+                )
             )
-            repository.updateProfile(updated)
-            _authError.value = "WhatsApp-style tones & vibration updated successfully! 🎵📳"
+            _authError.value = "Tones & vibration preferences saved!"
         }
     }
 
@@ -1039,29 +1150,21 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
             repository.updateProfile(legacy.copy(voiceCallWallpaper = wallpaper))
-            _authError.value = "Voice call background updated to: $wallpaper 🌅"
+            _authError.value = "Call background updated to: $wallpaper"
         }
     }
 
     fun toggleCameraSelf() {
-        _cameraEnabledSelf.value = !_cameraEnabledSelf.value
-        if (_isAutoCamSync.value) {
-            _cameraEnabledPartner.value = _cameraEnabledSelf.value
-        }
+        _cameraEnabledSelf.value = callEngine.toggleCamera()
     }
 
     fun toggleCameraPartner() {
         _cameraEnabledPartner.value = !_cameraEnabledPartner.value
-        if (_isAutoCamSync.value) {
-            _cameraEnabledSelf.value = _cameraEnabledPartner.value
-        }
     }
 
     fun setAutoCamSync(enabled: Boolean) {
         _isAutoCamSync.value = enabled
-        if (enabled) {
-            _cameraEnabledPartner.value = _cameraEnabledSelf.value
-        }
+        callEngine.setAutoCamSwitchEnabled(enabled)
     }
 
     fun clearPairingCelebration() {
@@ -1070,42 +1173,93 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun initiateCall(type: String) {
         val user = _currentUser.value
-        if (user == null || user.connectedPartnerEmail.isNullOrEmpty()) {
-            _authError.value = "Only connected couples can call! Please pair with your partner first. 🔒♥︎"
+        val room = _activeCoupleRoom.value
+        if (user == null || (user.connectedPartnerEmail.isNullOrEmpty() && room == null)) {
+            _authError.value = "Only connected couples can call. Please pair with your partner first."
             return
         }
         _callState.value = "OUTGOING"
         _callType.value = type
+
         viewModelScope.launch {
-            delay(2500)
-            _callState.value = "CONNECTED"
-            // Ensure camera on both is on if enabled and video call
-            if (type == "VIDEO" && _isAutoCamSync.value) {
-                _cameraEnabledSelf.value = true
-                _cameraEnabledPartner.value = true
+            val myUid = firebaseAuth?.currentUser?.uid ?: user.email
+            val partnerUid = room?.memberUids?.firstOrNull { it != myUid }
+                ?: user.connectedPartnerEmail
+            val members = room?.memberUids ?: listOfNotNull(myUid, partnerUid)
+
+            val createdCallRoom = if (firebaseAuth?.currentUser != null && firestoreRepo != null) {
+                firestoreRepo.createCallRoom(
+                    coupleRoomId = room?.roomId,
+                    memberUids = members,
+                    callType = type,
+                    title = "${user.username} & ${room?.partnerName ?: "Partner"} Stage"
+                ).getOrNull()
+            } else null
+
+            val callRoomId = createdCallRoom?.roomId ?: "local_call_${System.currentTimeMillis()}"
+            if (partnerUid != null && room != null && firebaseAuth?.currentUser != null) {
+                firestoreRepo?.pushNotificationToUser(
+                    recipientUid = partnerUid,
+                    coupleRoomId = room.roomId,
+                    senderName = user.username,
+                    type = "CALL",
+                    title = "Incoming $type Call",
+                    body = "${user.username} started a multi-stream $type call"
+                )
             }
+            HeartNotificationHelper.showNotification(
+                context = getApplication(),
+                channelId = HeartNotificationHelper.CHANNEL_CALLS,
+                title = "HeartSync $type Call",
+                body = "Connecting multi-stream WebRTC room..."
+            )
+            delay(800)
+            _callState.value = "CONNECTED"
+            callEngine.startCallSession(
+                callRoomId = callRoomId,
+                myUid = myUid,
+                myDisplayName = user.username,
+                partnerUid = partnerUid,
+                partnerDisplayName = room?.partnerName ?: "Partner",
+                callType = type
+            )
         }
     }
 
     fun receiveSimulatedCall(type: String) {
         val user = _currentUser.value
-        if (user == null || user.connectedPartnerEmail.isNullOrEmpty()) {
-            _authError.value = "Only connected couples can receive call! 🔒♥︎"
+        if (user == null || (user.connectedPartnerEmail.isNullOrEmpty() && _activeCoupleRoom.value == null)) {
+            _authError.value = "Pair with your partner first to test incoming call alerts."
             return
         }
         _callState.value = "INCOMING"
         _callType.value = type
+        HeartNotificationHelper.showNotification(
+            context = getApplication(),
+            channelId = HeartNotificationHelper.CHANNEL_CALLS,
+            title = "Incoming $type Call",
+            body = "Partner is calling on HeartSync"
+        )
     }
 
     fun acceptIncomingCall() {
+        val user = _currentUser.value ?: return
+        val room = _activeCoupleRoom.value
+        val myUid = firebaseAuth?.currentUser?.uid ?: user.email
+        val partnerUid = room?.memberUids?.firstOrNull { it != myUid } ?: user.connectedPartnerEmail
         _callState.value = "CONNECTED"
-        if (_callType.value == "VIDEO" && _isAutoCamSync.value) {
-            _cameraEnabledSelf.value = true
-            _cameraEnabledPartner.value = true
-        }
+        callEngine.startCallSession(
+            callRoomId = "call_${room?.roomId ?: "pair"}",
+            myUid = myUid,
+            myDisplayName = user.username,
+            partnerUid = partnerUid,
+            partnerDisplayName = room?.partnerName ?: "Partner",
+            callType = _callType.value
+        )
     }
 
     fun hangUpCall() {
+        callEngine.endCallSession()
         _callState.value = "IDLE"
     }
 
@@ -1113,9 +1267,6 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         _isPartnerSimulating.value = enabled
     }
 
-    // -------------------------------------------------------------
-    // MODERATOR / ADMIN DASHBOARD CAPABILITIES
-    // -------------------------------------------------------------
     fun loadAdminUsers() {
         viewModelScope.launch {
             _adminUsersList.value = repository.getAllUsers()
@@ -1126,44 +1277,21 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.deleteUserAccount(email)
             loadAdminUsers()
-            _authError.value = "Successfully removed user $email and disconnected partners!"
+            _authError.value = "Removed local user record $email."
         }
-    }
-
-    // -------------------------------------------------------------
-    // PARTNER AUTOMATED REPLY BOT (SNAPCHAT STYLED EXPERIENCES)
-    // -------------------------------------------------------------
-    private suspend fun generateSimulatedResponse(inputText: String, partnerEmail: String) {
-        val user = _currentUser.value ?: return
-        val lower = inputText.lowercase()
-        val textResponse = when {
-            lower.contains("hello") || lower.contains("hi") -> "Hey sweetheart! Hope you're having an amazing day 💖"
-            lower.contains("love") -> "I love you more than words can describe! Forever and always 💕"
-            lower.contains("streak") || lower.contains("snap") -> "Keeping our streak glowing is my favorite thing! Here is a virtual tight hug 🤗"
-            lower.contains("call") -> {
-                receiveSimulatedCall("VIDEO")
-                "Calling you right now my love! Answer below! 📞✨"
-            }
-            lower.contains("heart") -> "You have my whole heart! ❤️✨"
-            lower.contains("promise") -> "I swear to stay by your side through every single moment 🔒💘"
-            else -> listOf(
-                "Thinking of you makes my heart skip a beat 🥰",
-                "You are my absolute favorite person in the entire world 🌎❤️",
-                "Can't wait until we hold hands again! 🌸",
-                "Sending you millions of sweet thoughts right now 🌟",
-                "You make everything so much brighter ☀️💖"
-            ).random()
-        }
-        repository.sendMessage(
-            sender = "Sophia",
-            text = textResponse,
-            isDisappearing = false,
-            senderEmail = partnerEmail,
-            receiverEmail = user.email
-        )
     }
 
     fun clearAuthError() {
         _authError.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        callEngine.cleanupAllMedia()
+    }
+
+    companion object {
+        private const val TAG = "HeartViewModel"
+        private const val ADMIN_EMAIL = "dezacodex@gmail.com"
     }
 }

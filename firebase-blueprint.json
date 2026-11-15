@@ -1,0 +1,266 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile with couple pairing state, theme preferences, streaks, and FCM token (PII isolated to owner/admin).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "email": { "type": "string", "format": "email", "description": "Verified account email address." },
+        "username": { "type": "string", "description": "Display name shown to partner." },
+        "photoUrl": { "type": "string", "description": "Firebase Storage HTTPS URL or avatar identifier." },
+        "phone": { "type": "string", "description": "Optional phone number." },
+        "bio": { "type": "string", "description": "Short romantic bio / status message." },
+        "age": { "type": "integer", "description": "User age." },
+        "gender": { "type": "string", "description": "Gender or couple descriptor." },
+        "inviteCode": { "type": "string", "description": "Unique couple invite code (e.g., HS-4912)." },
+        "partnerUid": { "type": "string", "description": "Paired partner Firebase UID." },
+        "partnerEmail": { "type": "string", "description": "Paired partner email." },
+        "partnerUsername": { "type": "string", "description": "Paired partner display name." },
+        "coupleRoomId": { "type": "string", "description": "Active couple room document ID." },
+        "streakCount": { "type": "integer", "description": "Active daily snap/chat streak count." },
+        "snapScore": { "type": "integer", "description": "Accumulated couple score." },
+        "totalMomentsCount": { "type": "integer", "description": "Total stories shared." },
+        "currentTheme": { "type": "string", "description": "Selected visual theme name." },
+        "anniversaryDate": { "type": "string", "description": "Couple anniversary YYYY-MM-DD." },
+        "notificationTone": { "type": "string", "description": "Selected notification tone label." },
+        "callRingtone": { "type": "string", "description": "Selected voice call ringtone." },
+        "videoCallRingtone": { "type": "string", "description": "Selected video call ringtone." },
+        "vibrationIntensity": { "type": "string", "description": "Selected vibration pattern." },
+        "voiceCallWallpaper": { "type": "string", "description": "Selected voice call wallpaper." },
+        "fcmToken": { "type": "string", "description": "Firebase Cloud Messaging device token." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "Account role; client registration may only set user." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
+      },
+      "required": ["uid", "email", "username", "inviteCode", "createdAt", "updatedAt"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "In-app & push notification record scoped to /users/{userId}/notifications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "coupleRoomId": { "type": "string" },
+        "type": { "type": "string", "enum": ["MESSAGE", "CALL", "STREAK", "SNAP", "SCREENSHOT"] },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderUid", "coupleRoomId", "type", "title", "body", "isRead", "createdAt"]
+    },
+    "PairInvite": {
+      "title": "PairInvite",
+      "description": "Non-PII invite code lookup record enabling secure two-user couple pairing.",
+      "type": "object",
+      "properties": {
+        "inviteCode": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "isClaimed": { "type": "boolean" },
+        "claimedByUid": { "type": "string" },
+        "coupleRoomId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["inviteCode", "ownerUid", "ownerName", "isClaimed", "createdAt"]
+    },
+    "CoupleRoom": {
+      "title": "CoupleRoom",
+      "description": "Shared romantic workspace containing exactly 1-2 paired member UIDs, shared streaks, anniversary, and theme.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array", "description": "Bounded list (max 2) of paired UIDs." },
+        "myName": { "type": "string" },
+        "partnerName": { "type": "string" },
+        "statusText": { "type": "string" },
+        "anniversaryDate": { "type": "string" },
+        "streakCount": { "type": "integer" },
+        "totalScore": { "type": "integer" },
+        "wallpaper": { "type": "string" },
+        "lastInteractionAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "ownerUid", "memberUids", "streakCount", "totalScore", "createdAt", "updatedAt"]
+    },
+    "CoupleMessage": {
+      "title": "CoupleMessage",
+      "description": "Real-time private chat message with reactions, disappearing timers, and save-in-chat pinning.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "text": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "isDisappearing": { "type": "boolean" },
+        "durationSecs": { "type": "integer" },
+        "expiresAtMs": { "type": "integer" },
+        "viewed": { "type": "boolean" },
+        "reaction": { "type": "string" },
+        "isSavedInChat": { "type": "boolean" },
+        "msgEffect": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "senderUid", "senderName", "memberUids", "text", "isDisappearing", "createdAt"]
+    },
+    "CoupleSnap": {
+      "title": "CoupleSnap",
+      "description": "Ephemeral photo/video snap backed by Firebase Storage URL and screenshot alert state.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "snapType": { "type": "string", "enum": ["IMAGE", "VIDEO"] },
+        "description": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "durationSec": { "type": "integer" },
+        "viewed": { "type": "boolean" },
+        "screenshotAlert": { "type": "boolean" },
+        "isSavedInChat": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "senderUid", "senderName", "memberUids", "snapType", "description", "durationSec", "viewed", "createdAt"]
+    },
+    "CoupleStory": {
+      "title": "CoupleStory",
+      "description": "24-hour couple story or highlight backed by Firebase Storage media URL.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "description": { "type": "string" },
+        "imageType": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "expiresAtMs": { "type": "integer" },
+        "isSavedInChat": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "senderUid", "senderName", "memberUids", "description", "imageType", "expiresAtMs", "createdAt"]
+    },
+    "CallRoom": {
+      "title": "CallRoom",
+      "description": "Discord-style multi-stream WebRTC call room supporting grid/focus layouts, pinning, and auto-camera switching.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "coupleRoomId": { "type": "string" },
+        "hostUid": { "type": "string" },
+        "title": { "type": "string" },
+        "callType": { "type": "string", "enum": ["VIDEO", "VOICE"] },
+        "status": { "type": "string", "enum": ["active", "ended"] },
+        "layoutMode": { "type": "string", "enum": ["GRID", "FOCUS"] },
+        "pinnedUid": { "type": "string" },
+        "autoCamSwitch": { "type": "boolean" },
+        "hideNonVideo": { "type": "boolean" },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "endedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "hostUid", "callType", "status", "layoutMode", "memberUids", "createdAt", "updatedAt"]
+    },
+    "CallParticipant": {
+      "title": "CallParticipant",
+      "description": "Per-participant multi-stream WebRTC state (camera, screen share, mic audio, VAD active speaker, simulcast tier).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "callRoomId": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "displayName": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "isAudioMuted": { "type": "boolean" },
+        "isCameraEnabled": { "type": "boolean" },
+        "isScreenSharing": { "type": "boolean" },
+        "screenAudioEnabled": { "type": "boolean" },
+        "isSpeaking": { "type": "boolean" },
+        "audioLevelDb": { "type": "number" },
+        "videoQuality": { "type": "string", "enum": ["low", "medium", "high", "simulcast"] },
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "callRoomId", "memberUids", "displayName", "isAudioMuted", "isCameraEnabled", "isScreenSharing", "joinedAt", "updatedAt"]
+    },
+    "CallSignal": {
+      "title": "CallSignal",
+      "description": "WebRTC SDP offer/answer and ICE candidate signaling payload for camera and screen-share peer tracks.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "callRoomId": { "type": "string" },
+        "fromUid": { "type": "string" },
+        "toUid": { "type": "string" },
+        "participantUids": { "type": "array" },
+        "streamKind": { "type": "string", "enum": ["CAMERA", "SCREEN"] },
+        "signalType": { "type": "string", "enum": ["OFFER", "ANSWER", "ICE", "RENEGOTIATE"] },
+        "sdp": { "type": "string" },
+        "iceCandidate": { "type": "string" },
+        "iceSdpMid": { "type": "string" },
+        "iceSdpMLineIndex": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "callRoomId", "fromUid", "toUid", "participantUids", "streamKind", "signalType", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Private authenticated user profiles (owner-only and verified admin access)."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "User-scoped notifications for messages, calls, streaks, snaps, and screenshot alerts."
+    },
+    "/pair_invites/{inviteCode}": {
+      "schema": { "$ref": "#/entities/PairInvite" },
+      "description": "Non-PII invite code registry for pairing two partners."
+    },
+    "/couple_rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/CoupleRoom" },
+      "description": "Shared couple room containing 1-2 paired member UIDs and couple stats."
+    },
+    "/couple_rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/CoupleMessage" },
+      "description": "Private real-time chat messages inside a couple room."
+    },
+    "/couple_rooms/{roomId}/snaps/{snapId}": {
+      "schema": { "$ref": "#/entities/CoupleSnap" },
+      "description": "Private disappearing snaps inside a couple room."
+    },
+    "/couple_rooms/{roomId}/stories/{storyId}": {
+      "schema": { "$ref": "#/entities/CoupleStory" },
+      "description": "24-hour couple stories inside a couple room."
+    },
+    "/call_rooms/{callRoomId}": {
+      "schema": { "$ref": "#/entities/CallRoom" },
+      "description": "Discord-style multi-stream call room metadata and layout preferences."
+    },
+    "/call_rooms/{callRoomId}/participants/{participantId}": {
+      "schema": { "$ref": "#/entities/CallParticipant" },
+      "description": "Active call participant media state (camera, screen share, mic VAD, simulcast quality)."
+    },
+    "/call_rooms/{callRoomId}/signals/{signalId}": {
+      "schema": { "$ref": "#/entities/CallSignal" },
+      "description": "WebRTC SDP/ICE signaling records scoped strictly to sender and recipient."
+    }
+  }
+}

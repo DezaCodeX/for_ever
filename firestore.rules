@@ -1,0 +1,584 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          'email_verified' in request.auth.token &&
+          request.auth.token.email_verified == true &&
+          'email' in request.auth.token &&
+          request.auth.token.email == 'dezacodex@gmail.com'
+        )
+      );
+    }
+
+    function isRoomMember(roomId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/couple_rooms/$(roomId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/couple_rooms/$(roomId)).data.memberUids;
+    }
+
+    function isCallRoomMember(callRoomId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/call_rooms/$(callRoomId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/call_rooms/$(callRoomId)).data.memberUids;
+    }
+
+    // --- VALIDATION BLUEPRINTS ---
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.username is string && data.username.size() >= 1 && data.username.size() <= 60 &&
+        data.inviteCode is string && data.inviteCode.size() >= 3 && data.inviteCode.size() <= 32 &&
+        (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1024)) &&
+        (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 32)) &&
+        (!('bio' in data) || data.bio == null || (data.bio is string && data.bio.size() <= 240)) &&
+        (!('age' in data) || data.age == null || (data.age is int && data.age >= 0 && data.age <= 150)) &&
+        (!('gender' in data) || data.gender == null || (data.gender is string && data.gender.size() <= 120)) &&
+        (!('partnerUid' in data) || data.partnerUid == null || (data.partnerUid is string && data.partnerUid.size() <= 128)) &&
+        (!('partnerEmail' in data) || data.partnerEmail == null || (data.partnerEmail is string && data.partnerEmail.size() <= 200)) &&
+        (!('partnerUsername' in data) || data.partnerUsername == null || (data.partnerUsername is string && data.partnerUsername.size() <= 60)) &&
+        (!('coupleRoomId' in data) || data.coupleRoomId == null || (data.coupleRoomId is string && data.coupleRoomId.size() <= 128)) &&
+        (!('streakCount' in data) || data.streakCount == null || (data.streakCount is int && data.streakCount >= 0 && data.streakCount <= 100000)) &&
+        (!('snapScore' in data) || data.snapScore == null || (data.snapScore is int && data.snapScore >= 0 && data.snapScore <= 100000000)) &&
+        (!('totalMomentsCount' in data) || data.totalMomentsCount == null || (data.totalMomentsCount is int && data.totalMomentsCount >= 0 && data.totalMomentsCount <= 1000000)) &&
+        (!('currentTheme' in data) || data.currentTheme == null || (data.currentTheme is string && data.currentTheme.size() <= 60)) &&
+        (!('anniversaryDate' in data) || data.anniversaryDate == null || (data.anniversaryDate is string && data.anniversaryDate.size() <= 32)) &&
+        (!('notificationTone' in data) || data.notificationTone == null || (data.notificationTone is string && data.notificationTone.size() <= 64)) &&
+        (!('callRingtone' in data) || data.callRingtone == null || (data.callRingtone is string && data.callRingtone.size() <= 64)) &&
+        (!('videoCallRingtone' in data) || data.videoCallRingtone == null || (data.videoCallRingtone is string && data.videoCallRingtone.size() <= 64)) &&
+        (!('vibrationIntensity' in data) || data.vibrationIntensity == null || (data.vibrationIntensity is string && data.vibrationIntensity.size() <= 64)) &&
+        (!('voiceCallWallpaper' in data) || data.voiceCallWallpaper == null || (data.voiceCallWallpaper is string && data.voiceCallWallpaper.size() <= 128)) &&
+        (!('fcmToken' in data) || data.fcmToken == null || (data.fcmToken is string && data.fcmToken.size() <= 512)) &&
+        (!('role' in data) || data.role == null || (data.role is string && data.role in ['user', 'admin'])) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserNotification(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
+        (!('senderName' in data) || data.senderName == null || (data.senderName is string && data.senderName.size() <= 60)) &&
+        data.coupleRoomId is string && data.coupleRoomId.size() >= 1 && data.coupleRoomId.size() <= 128 &&
+        data.type is string && data.type in ['MESSAGE', 'CALL', 'STREAK', 'SNAP', 'SCREENSHOT'] &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+        data.body is string && data.body.size() >= 1 && data.body.size() <= 500 &&
+        data.isRead is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidPairInvite(data) {
+      return data.inviteCode is string && data.inviteCode.size() >= 3 && data.inviteCode.size() <= 32 &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+        data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 60 &&
+        data.isClaimed is bool &&
+        (!('claimedByUid' in data) || data.claimedByUid == null || (data.claimedByUid is string && data.claimedByUid.size() <= 128)) &&
+        (!('coupleRoomId' in data) || data.coupleRoomId == null || (data.coupleRoomId is string && data.coupleRoomId.size() <= 128)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidCoupleRoom(data) {
+      return data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 128 &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 2 &&
+        data.memberUids[0] is string &&
+        (data.memberUids.size() == 1 || data.memberUids[1] is string) &&
+        (!('myName' in data) || data.myName == null || (data.myName is string && data.myName.size() <= 60)) &&
+        (!('partnerName' in data) || data.partnerName == null || (data.partnerName is string && data.partnerName.size() <= 60)) &&
+        (!('statusText' in data) || data.statusText == null || (data.statusText is string && data.statusText.size() <= 240)) &&
+        (!('anniversaryDate' in data) || data.anniversaryDate == null || (data.anniversaryDate is string && data.anniversaryDate.size() <= 32)) &&
+        (!('wallpaper' in data) || data.wallpaper == null || (data.wallpaper is string && data.wallpaper.size() <= 128)) &&
+        data.streakCount is int && data.streakCount >= 0 && data.streakCount <= 100000 &&
+        data.totalScore is int && data.totalScore >= 0 && data.totalScore <= 100000000 &&
+        (!('lastInteractionAt' in data) || data.lastInteractionAt == null || (data.lastInteractionAt is timestamp && data.lastInteractionAt <= request.time)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCoupleMessage(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 128 &&
+        data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60 &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 2 &&
+        data.memberUids[0] is string &&
+        data.text is string && data.text.size() <= 2000 &&
+        (!('mediaUrl' in data) || data.mediaUrl == null || (data.mediaUrl is string && data.mediaUrl.size() <= 1024)) &&
+        data.isDisappearing is bool &&
+        (!('durationSecs' in data) || data.durationSecs == null || (data.durationSecs is int && data.durationSecs >= 1 && data.durationSecs <= 86400)) &&
+        (!('expiresAtMs' in data) || data.expiresAtMs == null || (data.expiresAtMs is int && data.expiresAtMs >= 0)) &&
+        (!('viewed' in data) || data.viewed == null || data.viewed is bool) &&
+        (!('reaction' in data) || data.reaction == null || (data.reaction is string && data.reaction.size() <= 16)) &&
+        (!('isSavedInChat' in data) || data.isSavedInChat == null || data.isSavedInChat is bool) &&
+        (!('msgEffect' in data) || data.msgEffect == null || (data.msgEffect is string && data.msgEffect.size() <= 24)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidCoupleSnap(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 128 &&
+        data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60 &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 2 &&
+        data.memberUids[0] is string &&
+        data.snapType is string && data.snapType in ['IMAGE', 'VIDEO'] &&
+        data.description is string && data.description.size() <= 500 &&
+        (!('mediaUrl' in data) || data.mediaUrl == null || (data.mediaUrl is string && data.mediaUrl.size() <= 1024)) &&
+        data.durationSec is int && data.durationSec >= 1 && data.durationSec <= 120 &&
+        data.viewed is bool &&
+        (!('screenshotAlert' in data) || data.screenshotAlert == null || data.screenshotAlert is bool) &&
+        (!('isSavedInChat' in data) || data.isSavedInChat == null || data.isSavedInChat is bool) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidCoupleStory(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 128 &&
+        data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60 &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 2 &&
+        data.memberUids[0] is string &&
+        data.description is string && data.description.size() <= 500 &&
+        data.imageType is string && data.imageType.size() >= 1 && data.imageType.size() <= 32 &&
+        (!('mediaUrl' in data) || data.mediaUrl == null || (data.mediaUrl is string && data.mediaUrl.size() <= 1024)) &&
+        data.expiresAtMs is int && data.expiresAtMs >= 0 &&
+        (!('isSavedInChat' in data) || data.isSavedInChat == null || data.isSavedInChat is bool) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidCallRoom(data) {
+      return data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 128 &&
+        (!('coupleRoomId' in data) || data.coupleRoomId == null || (data.coupleRoomId is string && data.coupleRoomId.size() <= 128)) &&
+        data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128 &&
+        (!('title' in data) || data.title == null || (data.title is string && data.title.size() <= 80)) &&
+        data.callType is string && data.callType in ['VIDEO', 'VOICE'] &&
+        data.status is string && data.status in ['active', 'ended'] &&
+        data.layoutMode is string && data.layoutMode in ['GRID', 'FOCUS'] &&
+        (!('pinnedUid' in data) || data.pinnedUid == null || (data.pinnedUid is string && data.pinnedUid.size() <= 128)) &&
+        (!('autoCamSwitch' in data) || data.autoCamSwitch == null || data.autoCamSwitch is bool) &&
+        (!('hideNonVideo' in data) || data.hideNonVideo == null || data.hideNonVideo is bool) &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 16 &&
+        data.memberUids[0] is string &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time &&
+        (!('endedAt' in data) || data.endedAt == null || (data.endedAt is timestamp && data.endedAt <= request.time));
+    }
+
+    function isValidCallParticipant(data) {
+      return data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.callRoomId is string && data.callRoomId.size() >= 1 && data.callRoomId.size() <= 128 &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 16 &&
+        data.memberUids[0] is string &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60 &&
+        (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1024)) &&
+        data.isAudioMuted is bool &&
+        data.isCameraEnabled is bool &&
+        data.isScreenSharing is bool &&
+        (!('screenAudioEnabled' in data) || data.screenAudioEnabled == null || data.screenAudioEnabled is bool) &&
+        (!('isSpeaking' in data) || data.isSpeaking == null || data.isSpeaking is bool) &&
+        (!('audioLevelDb' in data) || data.audioLevelDb == null || (data.audioLevelDb is number && data.audioLevelDb >= -120 && data.audioLevelDb <= 20)) &&
+        (!('videoQuality' in data) || data.videoQuality == null || (data.videoQuality is string && data.videoQuality in ['low', 'medium', 'high', 'simulcast'])) &&
+        data.joinedAt is timestamp && data.joinedAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCallSignal(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.callRoomId is string && data.callRoomId.size() >= 1 && data.callRoomId.size() <= 128 &&
+        data.fromUid is string && data.fromUid.size() >= 1 && data.fromUid.size() <= 128 &&
+        data.toUid is string && data.toUid.size() >= 1 && data.toUid.size() <= 128 &&
+        data.participantUids is list && data.participantUids.size() == 2 &&
+        data.participantUids[0] is string && data.participantUids[1] is string &&
+        data.streamKind is string && data.streamKind in ['CAMERA', 'SCREEN'] &&
+        data.signalType is string && data.signalType in ['OFFER', 'ANSWER', 'ICE', 'RENEGOTIATE'] &&
+        (!('sdp' in data) || data.sdp == null || (data.sdp is string && data.sdp.size() <= 65536)) &&
+        (!('iceCandidate' in data) || data.iceCandidate == null || (data.iceCandidate is string && data.iceCandidate.size() <= 4096)) &&
+        (!('iceSdpMid' in data) || data.iceSdpMid == null || (data.iceSdpMid is string && data.iceSdpMid.size() <= 64)) &&
+        (!('iceSdpMLineIndex' in data) || data.iceSdpMLineIndex == null || (data.iceSdpMLineIndex is int && data.iceSdpMLineIndex >= 0 && data.iceSdpMLineIndex <= 32)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- COLLECTION MATCH BLOCKS ---
+
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        incoming().uid == request.auth.uid &&
+        incoming().keys().hasAll(['uid', 'email', 'username', 'inviteCode', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly([
+          'uid', 'email', 'username', 'photoUrl', 'phone', 'bio', 'age', 'gender',
+          'inviteCode', 'partnerUid', 'partnerEmail', 'partnerUsername', 'coupleRoomId',
+          'streakCount', 'snapScore', 'totalMomentsCount', 'currentTheme', 'anniversaryDate',
+          'notificationTone', 'callRingtone', 'videoCallRingtone', 'vibrationIntensity',
+          'voiceCallWallpaper', 'fcmToken', 'role', 'createdAt', 'updatedAt'
+        ]) &&
+        (!('role' in incoming()) || incoming().role == 'user') &&
+        isValidUser(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUser(incoming()) &&
+        (isOwner(userId) || isAdmin()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        (!('role' in incoming()) || incoming().role == existing().get('role', 'user') || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'username', 'email', 'photoUrl', 'phone', 'bio', 'age', 'gender',
+          'partnerUid', 'partnerEmail', 'partnerUsername', 'coupleRoomId',
+          'streakCount', 'snapScore', 'totalMomentsCount', 'currentTheme', 'anniversaryDate',
+          'notificationTone', 'callRingtone', 'videoCallRingtone', 'vibrationIntensity',
+          'voiceCallWallpaper', 'fcmToken', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      match /notifications/{notificationId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(notificationId) && isOwner(userId);
+        allow list: if isSignedIn() && isValidId(userId) && isOwner(userId);
+
+        allow create: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(notificationId) &&
+          incoming().id == notificationId &&
+          incoming().senderUid == request.auth.uid &&
+          incoming().keys().hasAll(['id', 'senderUid', 'coupleRoomId', 'type', 'title', 'body', 'isRead', 'createdAt']) &&
+          incoming().keys().hasOnly(['id', 'senderUid', 'senderName', 'coupleRoomId', 'type', 'title', 'body', 'isRead', 'createdAt', 'updatedAt']) &&
+          isValidUserNotification(incoming()) &&
+          (isOwner(userId) || isRoomMember(incoming().coupleRoomId));
+
+        allow update: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(notificationId) &&
+          isOwner(userId) &&
+          isValidUserNotification(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().senderUid == existing().senderUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(notificationId) && isOwner(userId);
+      }
+    }
+
+    match /pair_invites/{inviteCode} {
+      allow get: if isSignedIn() && isValidId(inviteCode);
+      allow list: if isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(inviteCode) &&
+        incoming().inviteCode == inviteCode &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().isClaimed == false &&
+        incoming().keys().hasAll(['inviteCode', 'ownerUid', 'ownerName', 'isClaimed', 'createdAt']) &&
+        incoming().keys().hasOnly(['inviteCode', 'ownerUid', 'ownerName', 'isClaimed', 'claimedByUid', 'coupleRoomId', 'createdAt', 'updatedAt']) &&
+        isValidPairInvite(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(inviteCode) &&
+        isValidPairInvite(incoming()) &&
+        incoming().inviteCode == existing().inviteCode &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (
+            existing().isClaimed == false &&
+            incoming().isClaimed == true &&
+            incoming().claimedByUid == request.auth.uid &&
+            request.auth.uid != existing().ownerUid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['isClaimed', 'claimedByUid', 'coupleRoomId', 'updatedAt'])
+          ) ||
+          (
+            existing().ownerUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['ownerName', 'isClaimed', 'claimedByUid', 'coupleRoomId', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(inviteCode) && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /couple_rooms/{roomId} {
+      allow get: if isSignedIn() && isValidId(roomId) && (request.auth.uid in existing().memberUids || isAdmin());
+      allow list: if isSignedIn() && (request.auth.uid in existing().memberUids || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(roomId) &&
+        incoming().roomId == roomId &&
+        incoming().ownerUid == request.auth.uid &&
+        request.auth.uid in incoming().memberUids &&
+        incoming().keys().hasAll(['roomId', 'ownerUid', 'memberUids', 'streakCount', 'totalScore', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly([
+          'roomId', 'ownerUid', 'memberUids', 'myName', 'partnerName', 'statusText',
+          'anniversaryDate', 'streakCount', 'totalScore', 'wallpaper',
+          'lastInteractionAt', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidCoupleRoom(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(roomId) &&
+        isValidCoupleRoom(incoming()) &&
+        (isAdmin() || request.auth.uid in existing().memberUids) &&
+        incoming().roomId == existing().roomId &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'myName', 'partnerName', 'statusText', 'anniversaryDate', 'streakCount',
+          'totalScore', 'wallpaper', 'lastInteractionAt', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(roomId) && (existing().ownerUid == request.auth.uid || isAdmin());
+
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(messageId) && (isRoomMember(roomId) || isAdmin());
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(roomId) &&
+          isValidId(messageId) &&
+          incoming().id == messageId &&
+          incoming().roomId == roomId &&
+          incoming().senderUid == request.auth.uid &&
+          request.auth.uid in incoming().memberUids &&
+          incoming().keys().hasAll(['id', 'roomId', 'senderUid', 'senderName', 'memberUids', 'text', 'isDisappearing', 'createdAt']) &&
+          incoming().keys().hasOnly([
+            'id', 'roomId', 'senderUid', 'senderName', 'memberUids', 'text', 'mediaUrl',
+            'isDisappearing', 'durationSecs', 'expiresAtMs', 'viewed', 'reaction',
+            'isSavedInChat', 'msgEffect', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidCoupleMessage(incoming()) &&
+          isRoomMember(roomId);
+
+        allow update: if isSignedIn() &&
+          isValidId(roomId) &&
+          isValidId(messageId) &&
+          isValidCoupleMessage(incoming()) &&
+          (isAdmin() || isRoomMember(roomId)) &&
+          incoming().id == existing().id &&
+          incoming().roomId == existing().roomId &&
+          incoming().senderUid == existing().senderUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'reaction', 'isSavedInChat', 'viewed', 'expiresAtMs', 'updatedAt'
+          ]);
+
+        allow delete: if isSignedIn() && isValidId(roomId) && isValidId(messageId) && (isRoomMember(roomId) || isAdmin());
+      }
+
+      match /snaps/{snapId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(snapId) && (isRoomMember(roomId) || isAdmin());
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(roomId) &&
+          isValidId(snapId) &&
+          incoming().id == snapId &&
+          incoming().roomId == roomId &&
+          incoming().senderUid == request.auth.uid &&
+          request.auth.uid in incoming().memberUids &&
+          incoming().keys().hasAll(['id', 'roomId', 'senderUid', 'senderName', 'memberUids', 'snapType', 'description', 'durationSec', 'viewed', 'createdAt']) &&
+          incoming().keys().hasOnly([
+            'id', 'roomId', 'senderUid', 'senderName', 'memberUids', 'snapType',
+            'description', 'mediaUrl', 'durationSec', 'viewed', 'screenshotAlert',
+            'isSavedInChat', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidCoupleSnap(incoming()) &&
+          isRoomMember(roomId);
+
+        allow update: if isSignedIn() &&
+          isValidId(roomId) &&
+          isValidId(snapId) &&
+          isValidCoupleSnap(incoming()) &&
+          (isAdmin() || isRoomMember(roomId)) &&
+          incoming().id == existing().id &&
+          incoming().roomId == existing().roomId &&
+          incoming().senderUid == existing().senderUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'viewed', 'screenshotAlert', 'isSavedInChat', 'updatedAt'
+          ]);
+
+        allow delete: if isSignedIn() && isValidId(roomId) && isValidId(snapId) && (isRoomMember(roomId) || isAdmin());
+      }
+
+      match /stories/{storyId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(storyId) && (isRoomMember(roomId) || isAdmin());
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(roomId) &&
+          isValidId(storyId) &&
+          incoming().id == storyId &&
+          incoming().roomId == roomId &&
+          incoming().senderUid == request.auth.uid &&
+          request.auth.uid in incoming().memberUids &&
+          incoming().keys().hasAll(['id', 'roomId', 'senderUid', 'senderName', 'memberUids', 'description', 'imageType', 'expiresAtMs', 'createdAt']) &&
+          incoming().keys().hasOnly([
+            'id', 'roomId', 'senderUid', 'senderName', 'memberUids', 'description',
+            'imageType', 'mediaUrl', 'expiresAtMs', 'isSavedInChat', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidCoupleStory(incoming()) &&
+          isRoomMember(roomId);
+
+        allow update: if isSignedIn() &&
+          isValidId(roomId) &&
+          isValidId(storyId) &&
+          isValidCoupleStory(incoming()) &&
+          (isAdmin() || isRoomMember(roomId)) &&
+          incoming().id == existing().id &&
+          incoming().roomId == existing().roomId &&
+          incoming().senderUid == existing().senderUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['isSavedInChat', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(roomId) && isValidId(storyId) && (isRoomMember(roomId) || isAdmin());
+      }
+    }
+
+    match /call_rooms/{callRoomId} {
+      allow get: if isSignedIn() && isValidId(callRoomId) && (request.auth.uid in existing().memberUids || isAdmin());
+      allow list: if isSignedIn() && (request.auth.uid in existing().memberUids || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(callRoomId) &&
+        incoming().roomId == callRoomId &&
+        incoming().hostUid == request.auth.uid &&
+        incoming().status == 'active' &&
+        request.auth.uid in incoming().memberUids &&
+        incoming().keys().hasAll(['roomId', 'hostUid', 'callType', 'status', 'layoutMode', 'memberUids', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly([
+          'roomId', 'coupleRoomId', 'hostUid', 'title', 'callType', 'status',
+          'layoutMode', 'pinnedUid', 'autoCamSwitch', 'hideNonVideo', 'memberUids',
+          'createdAt', 'updatedAt', 'endedAt'
+        ]) &&
+        isValidCallRoom(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(callRoomId) &&
+        isValidCallRoom(incoming()) &&
+        incoming().roomId == existing().roomId &&
+        incoming().hostUid == existing().hostUid &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (
+            existing().status != 'ended' &&
+            request.auth.uid in existing().memberUids &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'layoutMode', 'pinnedUid', 'autoCamSwitch', 'hideNonVideo',
+              'memberUids', 'endedAt', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(callRoomId) && (existing().hostUid == request.auth.uid || isAdmin());
+
+      match /participants/{participantId} {
+        allow get: if isSignedIn() && isValidId(callRoomId) && isValidId(participantId) && (isCallRoomMember(callRoomId) || isAdmin());
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(callRoomId) &&
+          isValidId(participantId) &&
+          request.auth.uid == participantId &&
+          incoming().uid == request.auth.uid &&
+          incoming().callRoomId == callRoomId &&
+          request.auth.uid in incoming().memberUids &&
+          incoming().keys().hasAll(['uid', 'callRoomId', 'memberUids', 'displayName', 'isAudioMuted', 'isCameraEnabled', 'isScreenSharing', 'joinedAt', 'updatedAt']) &&
+          incoming().keys().hasOnly([
+            'uid', 'callRoomId', 'memberUids', 'displayName', 'photoUrl', 'isAudioMuted',
+            'isCameraEnabled', 'isScreenSharing', 'screenAudioEnabled', 'isSpeaking',
+            'audioLevelDb', 'videoQuality', 'joinedAt', 'updatedAt'
+          ]) &&
+          isValidCallParticipant(incoming()) &&
+          isCallRoomMember(callRoomId);
+
+        allow update: if isSignedIn() &&
+          isValidId(callRoomId) &&
+          isValidId(participantId) &&
+          isValidCallParticipant(incoming()) &&
+          incoming().uid == existing().uid &&
+          incoming().callRoomId == existing().callRoomId &&
+          incoming().joinedAt == existing().joinedAt &&
+          isCallRoomMember(callRoomId) &&
+          (
+            isAdmin() ||
+            (
+              request.auth.uid == participantId &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'displayName', 'photoUrl', 'isAudioMuted', 'isCameraEnabled', 'isScreenSharing',
+                'screenAudioEnabled', 'isSpeaking', 'audioLevelDb', 'videoQuality', 'memberUids', 'updatedAt'
+              ])
+            )
+          );
+
+        allow delete: if isSignedIn() && isValidId(callRoomId) && isValidId(participantId) && (request.auth.uid == participantId || isAdmin());
+      }
+
+      match /signals/{signalId} {
+        allow get: if isSignedIn() && isValidId(callRoomId) && isValidId(signalId) && (request.auth.uid in existing().participantUids || isAdmin());
+        allow list: if isSignedIn() && (request.auth.uid in existing().participantUids || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(callRoomId) &&
+          isValidId(signalId) &&
+          incoming().id == signalId &&
+          incoming().callRoomId == callRoomId &&
+          incoming().fromUid == request.auth.uid &&
+          request.auth.uid in incoming().participantUids &&
+          incoming().toUid in incoming().participantUids &&
+          incoming().keys().hasAll(['id', 'callRoomId', 'fromUid', 'toUid', 'participantUids', 'streamKind', 'signalType', 'createdAt']) &&
+          incoming().keys().hasOnly([
+            'id', 'callRoomId', 'fromUid', 'toUid', 'participantUids', 'streamKind',
+            'signalType', 'sdp', 'iceCandidate', 'iceSdpMid', 'iceSdpMLineIndex', 'createdAt'
+          ]) &&
+          isValidCallSignal(incoming()) &&
+          isCallRoomMember(callRoomId);
+
+        allow update: if false;
+        allow delete: if isSignedIn() && isValidId(callRoomId) && isValidId(signalId) && (request.auth.uid in existing().participantUids || isAdmin());
+      }
+    }
+  }
+}

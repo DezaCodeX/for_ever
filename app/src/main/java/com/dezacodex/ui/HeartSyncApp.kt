@@ -1,8 +1,14 @@
 package com.dezacodex.ui
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import androidx.compose.animation.*
+import androidx.compose.ui.platform.testTag
+import com.dezacodex.ui.call.DiscordVideoCallScreen
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -52,6 +58,17 @@ enum class NavigationTab {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeartSyncApp(viewModel: HeartViewModel) {
+    val context = LocalContext.current
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val authError by viewModel.authError.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -444,9 +461,9 @@ fun OnboardingScreen(viewModel: HeartViewModel) {
 // -------------------------------------------------------------
 @Composable
 fun WelcomeScreen(viewModel: HeartViewModel) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var showGoogleChooser by remember { mutableStateOf(false) }
-    var customGoogleEmail by remember { mutableStateOf("") }
+    val isAuthLoading by viewModel.isAuthLoading.collectAsStateWithLifecycle()
 
     Heart3DAnimationBackground(
         modifier = Modifier.fillMaxSize()
@@ -520,20 +537,30 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                         modifier = Modifier.padding(18.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // 1. Google OAuth (Sign-in with Google)
+                        // 1. Google Sign-In via Credential Manager + Firebase Auth
                         Button(
                             onClick = {
-                                showGoogleChooser = true
+                                viewModel.signInWithGoogleCredentialManager(context)
                             },
+                            enabled = !isAuthLoading,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
+                                .height(52.dp)
+                                .testTag("google_sign_in_button"),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA))
                         ) {
-                            Icon(Icons.Default.AccountCircle, contentDescription = "Google", tint = Color.White)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Continue with Google OAuth 🌟", fontWeight = FontWeight.Bold, color = Color.White)
+                            if (isAuthLoading) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Default.AccountCircle, contentDescription = "Google", tint = Color.White)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Continue with Google", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -598,7 +625,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
 
             // Bottom Copyright Policy Label
             Text(
-                text = "By joining, you agree to for∞ever♥︎ Secure Pairing Policy.\nAdmin: dezacodex@gmail.com",
+                text = "By joining, you agree to for∞ever♥︎ Secure Pairing Policy.\nCloud Sync backed by Firebase Auth & Firestore",
                 fontSize = 9.sp,
                 color = Color(0xFF7E22CE),
                 fontWeight = FontWeight.Bold,
@@ -612,159 +639,6 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
             )
         }
     }
-
-    // Beautiful Google Sign-In Chooser Dialog
-    if (showGoogleChooser) {
-        AlertDialog(
-            onDismissRequest = { showGoogleChooser = false },
-            title = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                        Text("o", color = Color(0xFFEA4335), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                        Text("o", color = Color(0xFFFBBC05), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                        Text("g", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                        Text("l", color = Color(0xFF34A853), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                        Text("e", color = Color(0xFFEA4335), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Sign in to for∞ever♥︎",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "Choose an account to continue",
-                        fontSize = 12.sp,
-                        color = Color.Gray
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Pre-saved account 1: User metadata email (Mohan)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showGoogleChooser = false
-                                viewModel.triggerGoogleSignIn("mohan641048@gmail.com", "Mohan")
-                            },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color(0xFF7E22CE), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("M", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("Mohan", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("mohan641048@gmail.com", fontSize = 11.sp, color = Color.Gray)
-                            }
-                        }
-                    }
-
-                    // Pre-saved account 2: Juliet
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showGoogleChooser = false
-                                viewModel.updateProfileName("Juliet", "Romeo", "2212-12-12")
-                                viewModel.triggerGoogleSignIn("juliet@forever.app", "Juliet")
-                            },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color(0xFFEC4899), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("J", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("Juliet", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("juliet@forever.app", fontSize = 11.sp, color = Color.Gray)
-                            }
-                        }
-                    }
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardColors(containerColor = Color.White, contentColor = Color.Black, disabledContainerColor = Color.White, disabledContentColor = Color.Black),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "Use custom Gmail account",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
-                            OutlinedTextField(
-                                value = customGoogleEmail,
-                                onValueChange = { customGoogleEmail = it },
-                                placeholder = { Text("e.g. someone@gmail.com") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp),
-                                singleLine = true
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = {
-                                    if (customGoogleEmail.isNotEmpty()) {
-                                        showGoogleChooser = false
-                                        val extractedName = customGoogleEmail.substringBefore("@")
-                                            .replaceFirstChar { it.uppercase() }
-                                        viewModel.triggerGoogleSignIn(customGoogleEmail, extractedName)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4))
-                            ) {
-                                Text("Continue with this account", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showGoogleChooser = false }) {
-                    Text("Cancel", color = Color.Gray, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
 }
 
 // -------------------------------------------------------------
@@ -773,6 +647,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(viewModel: HeartViewModel) {
+    BackHandler { viewModel.navigateTo(AppScreen.WELCOME) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var rememberMe by remember { mutableStateOf(true) }
@@ -941,6 +816,7 @@ fun LoginScreen(viewModel: HeartViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(viewModel: HeartViewModel) {
+    BackHandler { viewModel.navigateTo(AppScreen.WELCOME) }
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -1184,6 +1060,7 @@ fun SignupScreen(viewModel: HeartViewModel) {
 // -------------------------------------------------------------
 @Composable
 fun OtpVerifyScreen(viewModel: HeartViewModel) {
+    BackHandler { viewModel.navigateTo(AppScreen.LOGIN) }
     var code by remember { mutableStateOf("") }
     var timerCount by remember { mutableStateOf(30) }
 
@@ -1312,6 +1189,7 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForgotPasswordScreen(viewModel: HeartViewModel) {
+    BackHandler { viewModel.navigateTo(AppScreen.LOGIN) }
     val phase by viewModel.forgotPasswordPhase.collectAsState()
     var email by remember { mutableStateOf("") }
     var otpCode by remember { mutableStateOf("") }
@@ -1687,12 +1565,12 @@ fun MainHomeScreen(
                         }
                     }
 
-                    // Offline / Supabase Sync Notice
+                    // Firebase Cloud Sync / Local Cache Notice
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                if (viewModel.isSupabaseConnected) Color(0xFF22C55E).copy(alpha = 0.08f)
+                                if (viewModel.isCloudConnected) Color(0xFF22C55E).copy(alpha = 0.08f)
                                 else Color(0xFFFF9F0A).copy(alpha = 0.08f)
                             )
                             .padding(vertical = 4.dp, horizontal = 16.dp),
@@ -1700,10 +1578,10 @@ fun MainHomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (viewModel.isSupabaseConnected) "SECURE MONGO ATLAS CONNECTED" else "OFFLINE SECURE SANDBOX ACTIVE",
+                            text = if (viewModel.isCloudConnected) "FIREBASE CLOUD SYNC ACTIVE" else "OFFLINE LOCAL CACHE ACTIVE",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Black,
-                            color = if (viewModel.isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706)
+                            color = if (viewModel.isCloudConnected) Color(0xFF16A34A) else Color(0xFFD97706)
                         )
                     }
                 }
@@ -1982,6 +1860,7 @@ fun MainHomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PairingScreen(viewModel: HeartViewModel, user: User?) {
+    BackHandler { viewModel.navigateTo(AppScreen.MAIN) }
     val inviteCode = user?.inviteCode ?: "HS-CODM"
     var enteredCode by remember { mutableStateOf("") }
 
@@ -3033,310 +2912,14 @@ fun CallsView(viewModel: HeartViewModel, user: User, state: String, type: String
                 }
             }
             "CONNECTED" -> {
-                if (type == "VOICE") {
-                    // 1) VOICE CALL: CUSTOM FULL-SCREEN WALLPAPER CUSTOMIZATION WINDOW (GB-WhatsApp style)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(520.dp)
-                            .shadow(12.dp, RoundedCornerShape(32.dp)),
-                        shape = RoundedCornerShape(32.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(wallpaperBrush)
-                                .padding(24.dp)
-                        ) {
-                            // Column for content
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.SpaceBetween,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                // Title
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Surface(
-                                        color = Color.Black.copy(alpha = 0.4f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Text(
-                                            text = "📞 GB-WhatsApp Voice Theme: Active",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "Connecting Hearts Over Airwaves",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                }
-
-                                // Pulsing Heart Emoji in custom backdrop
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("💖", fontSize = 72.sp)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Duration: 02:44 (End-to-End Encrypted)",
-                                        fontSize = 11.sp,
-                                        color = Color.White.copy(alpha = 0.7f)
-                                    )
-                                }
-
-                                // Custom Live Wallpaper picker inside the call screen!
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                                        .padding(12.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "🎛️ GB-WhatsApp Background Customizer",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        val wallpapersList = listOf("Lovely Lavender", "Ocean Breeze", "Sunset Rose", "Forest Serenity", "Midnight")
-                                        wallpapersList.forEach { wp ->
-                                            val isAct = (activeWallpaper == wp)
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(if (isAct) Color(0xFFC084FC) else Color.White.copy(alpha = 0.2f))
-                                                    .clickable { viewModel.updateVoiceWallpaper(wp) }
-                                                    .padding(vertical = 6.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = wp.substringBefore(" "),
-                                                    fontSize = 9.sp,
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Disconnect controls
-                                Button(
-                                    onClick = { viewModel.hangUpCall() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.CallEnd, contentDescription = "End", tint = Color.White)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Terminate Handshake Call 📞", fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // 2) VIDEO CALL: TELEGRAM-STYLE DUAL VIDEO GRIDS WITH CAMERA AUTO-SYNC GESTURES
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(520.dp)
-                            .shadow(12.dp, RoundedCornerShape(32.dp)),
-                        shape = RoundedCornerShape(32.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Header indicating camera states
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        color = Color(0xFF0284C7),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Text(
-                                            text = "📹 TELEGRAM-STYLE VIDEO",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    if (isAutoCamSync) {
-                                        Surface(
-                                            color = Color(0xFF22C55E),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Text(
-                                                text = "CAM SYNC ON",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                                        .clickable { viewModel.setAutoCamSync(!isAutoCamSync) }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "Sync Cam",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Switch(
-                                        checked = isAutoCamSync,
-                                        onCheckedChange = { viewModel.setAutoCamSync(it) },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = Color(0xFF22C55E),
-                                            checkedTrackColor = Color(0xFFDCFCE7)
-                                        ),
-                                        modifier = Modifier.scale(0.6f)
-                                    )
-                                }
-                            }
-
-                            // Splitted Video view for Self and Partner
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(vertical = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                // Grid 1: Self Video Container (Compact size like telegram pip)
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(
-                                            if (cameraEnabledSelf) Color(0xFF1E293B) else Color(0xFFFF4B6E).copy(alpha = 0.15f)
-                                        )
-                                        .border(BorderStroke(2.dp, if (cameraEnabledSelf) Color(0xFF38BDF8) else Color.Transparent), RoundedCornerShape(16.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (cameraEnabledSelf) {
-                                        // Self video simulator
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("🙋‍♀️ (Your Camera Mock Live)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text("Pulsing video stream...", color = Color.Gray, fontSize = 11.sp)
-                                        }
-                                    } else {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("🔇", fontSize = 24.sp)
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text("Your Camera is Off", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-
-                                // Grid 2: Partner Video Container
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(
-                                            if (cameraEnabledPartner) Color(0xFF31102F) else Color(0xFF6B21A8).copy(alpha = 0.15f)
-                                        )
-                                        .border(BorderStroke(2.dp, if (cameraEnabledPartner) Color(0xFFC084FC) else Color.Transparent), RoundedCornerShape(16.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (cameraEnabledPartner) {
-                                        // Partner video simulator
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("🤵 (Lover Camera Live)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text("Sync active. Frame rate: 60FPS", color = Color.Gray, fontSize = 11.sp)
-                                        }
-                                    } else {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("🙈", fontSize = 24.sp)
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text("Partner Camera is Off", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Interactive Live triggers for camera sync, toggle self & partner cams
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
-                                    .padding(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Button(
-                                        onClick = { viewModel.toggleCameraSelf() },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (cameraEnabledSelf) Color(0xFF0284C7) else Color(0xFFEF4444)
-                                        ),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text(if (cameraEnabledSelf) "Disable My Cam" else "Enable My Cam", fontSize = 10.sp)
-                                    }
-
-                                    Button(
-                                        onClick = { viewModel.toggleCameraPartner() },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (cameraEnabledPartner) Color(0xFF7E22CE) else Color(0xFFEF4444)
-                                        ),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text(if (cameraEnabledPartner) "Disable Lover Cam" else "Enable Lover Cam", fontSize = 10.sp)
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Button(
-                                    onClick = { viewModel.hangUpCall() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.CallEnd, contentDescription = "Hang up")
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Disconnect Video Handshake", fontWeight = FontWeight.Black)
-                                }
-                            }
-                        }
-                    }
-                }
+                DiscordVideoCallScreen(
+                    engine = viewModel.callEngine,
+                    onHangUp = { viewModel.hangUpCall() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(580.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                )
             }
         }
     }
@@ -3385,16 +2968,15 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
         }
     }
     
-    // Image selection state & Presets option
+    // Play-compliant Photo Picker uploading to Firebase Storage bucket
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: android.net.Uri? ->
         uri?.let {
             if (editMode) {
                 avatarUrlInput = it.toString()
-            } else {
-                viewModel.updateAvatarUrl(it.toString())
             }
+            viewModel.uploadAndSaveAvatar(it)
         }
     }
 
@@ -4066,12 +3648,12 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                                         if (updateAvailable && !isDownloading) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Button(
-                                                onClick = { viewModel.triggerUpdateDownloadAndInstall() },
+                                                onClick = { viewModel.openUpdateReleasePage() },
                                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                                                 shape = RoundedCornerShape(8.dp),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text("Download & Install Update 🚀", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                Text("Open Official Release Page", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                             }
                                         }
                                     }
@@ -4116,7 +3698,9 @@ fun OnboardingProfileView(viewModel: HeartViewModel, user: User) {
                     Button(
                         onClick = {
                             showPresetDialog = false
-                            imagePickerLauncher.launch("image/*")
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                         modifier = Modifier.fillMaxWidth()
@@ -4199,6 +3783,7 @@ fun ProfileDetailRow(
 // -------------------------------------------------------------
 @Composable
 fun AdminDashboardView(viewModel: HeartViewModel) {
+    BackHandler { viewModel.logout() }
     val usersList by viewModel.adminUsersList.collectAsStateWithLifecycle()
 
     Column(
