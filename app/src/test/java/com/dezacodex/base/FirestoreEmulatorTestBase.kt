@@ -32,6 +32,10 @@ abstract class FirestoreEmulatorTestBase {
 
     @Before
     open fun setUpFirebase() {
+        org.junit.Assume.assumeTrue(
+            "Skipping emulator-backed test because Firebase Firestore Emulator is not listening on $EMULATOR_HOST:$FIRESTORE_PORT",
+            isPortOpen(EMULATOR_HOST, FIRESTORE_PORT) && isPortOpen(EMULATOR_HOST, AUTH_PORT)
+        )
         val context = ApplicationProvider.getApplicationContext<Context>()
         val resId = context.resources.getIdentifier(
             "firestore_database_id",
@@ -68,7 +72,20 @@ abstract class FirestoreEmulatorTestBase {
 
     @After
     open fun tearDownFirebase() {
-        auth.signOut()
+        if (::auth.isInitialized) {
+            auth.signOut()
+        }
+    }
+
+    private fun isPortOpen(host: String, port: Int): Boolean {
+        return try {
+            java.net.Socket().use { socket ->
+                socket.connect(java.net.InetSocketAddress(host, port), 150)
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     // Local test harness helper ONLY under app/src/test/.

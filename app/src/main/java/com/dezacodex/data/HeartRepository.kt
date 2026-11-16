@@ -1,5 +1,6 @@
 package com.dezacodex.data
 
+import com.dezacodex.security.PasswordHasher
 import com.dezacodex.security.SecurityUtils
 import kotlinx.coroutines.flow.Flow
 
@@ -33,12 +34,10 @@ class HeartRepository(private val dao: HeartDao) {
         val existing = dao.getUserByEmail(normalizedEmail)
         if (existing != null) return existing
 
-        val hashed = if (isGoogleUser || rawOrHashedPassword.isEmpty()) {
-            ""
-        } else if (rawOrHashedPassword.contains(":")) {
-            rawOrHashedPassword
-        } else {
-            SecurityUtils.hashPassword(rawOrHashedPassword)
+        val hashed = when {
+            isGoogleUser || rawOrHashedPassword.isEmpty() -> ""
+            rawOrHashedPassword.startsWith("pbkdf2$") || rawOrHashedPassword.contains(":") -> rawOrHashedPassword
+            else -> SecurityUtils.hashPassword(rawOrHashedPassword)
         }
 
         val user = User(
@@ -56,14 +55,62 @@ class HeartRepository(private val dao: HeartDao) {
         return user
     }
 
+    suspend fun registerUser(
+        email: String,
+        username: String,
+        rawPassword: String,
+        phone: String
+    ): Result<User> {
+        val normalizedEmail = email.trim().lowercase()
+        if (normalizedEmail.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Email is required."))
+        }
+        val existing = dao.getUserByEmail(normalizedEmail)
+        if (existing != null) {
+            return Result.failure(IllegalStateException("An account with this email already exists."))
+        }
+        val hashed = PasswordHasher.hashPassword(rawPassword)
+        val user = User(
+            email = normalizedEmail,
+            username = username.trim(),
+            passwordHash = hashed,
+            phone = phone.trim(),
+            inviteCode = SecurityUtils.generateInviteCode(),
+            isGoogleUser = false,
+            isOtpVerified = false
+        )
+        dao.insertUser(user)
+        return Result.success(user)
+    }
+
     suspend fun upsertLocalMirrorUser(user: User) {
         dao.insertUser(user)
     }
 
     suspend fun loginUser(email: String, rawPassword: String): User? {
-        val user = dao.getUserByEmail(email.trim().lowercase()) ?: return null
-        if (user.passwordHash.isBlank()) return null
-        return if (SecurityUtils.verifyPassword(rawPassword, user.passwordHash)) user else null
+        val normalizedEmail = email.trim().lowercase()
+        val user = dao.getUserByEmail(normalizedEmail) ?: return null
+        val stored = user.passwordHash
+        if (stored.isBlank() || rawPassword.isEmpty()) return null
+
+        return when {
+            PasswordHasher.isHashed(stored) -> {
+                if (PasswordHasher.verifyPassword(rawPassword, stored)) user else null
+            }
+            stored.contains(":") -> {
+                if (SecurityUtils.verifyPassword(rawPassword, stored)) user else null
+            }
+            else -> {
+                // Legacy plaintext record: verify constant-time and transparently upgrade to salted PBKDF2
+                if (PasswordHasher.verifyPassword(rawPassword, stored)) {
+                    val upgraded = user.copy(passwordHash = PasswordHasher.hashPassword(rawPassword))
+                    dao.insertUser(upgraded)
+                    upgraded
+                } else {
+                    null
+                }
+            }
+        }
     }
 
     suspend fun getUserByInviteCode(code: String): User? = dao.getUserByInviteCode(code.trim().uppercase())
@@ -133,7 +180,7 @@ class HeartRepository(private val dao: HeartDao) {
     /**
      * Synchronizes streak count across both LoversProfile and the active User entity (fixing FUNC-03).
      */
-    suspend fun recordSnapStreakActivity(userEmail: String? = null) {
+    suspend fun recordSnapStreakActivity(userEmail: String? = null): Int {
         val current = dao.getProfileDirect() ?: LoversProfile()
         val now = System.currentTimeMillis()
         val oneDayMs = 24 * 60 * 60 * 1000L
@@ -165,6 +212,7 @@ class HeartRepository(private val dao: HeartDao) {
                 )
             }
         }
+        return newStreak
     }
 
     val allMessages: Flow<List<LoveMessage>> = dao.getAllMessagesFlow()
@@ -180,13 +228,15 @@ class HeartRepository(private val dao: HeartDao) {
         duration: Int = 10,
         senderEmail: String = "",
         receiverEmail: String = "",
-        msgEffect: String = ""
+        msgEffect: String = "",
+        mediaUrl: String? = null
     ) {
         val msg = LoveMessage(
             senderName = sender,
             senderEmail = senderEmail,
             receiverEmail = receiverEmail,
             text = text,
+            mediaUrl = mediaUrl,
             isDisappearing = isDisappearing,
             durationSecs = duration,
             msgEffect = msgEffect
@@ -229,6 +279,10 @@ class HeartRepository(private val dao: HeartDao) {
         dao.clearAllMessages()
     }
 
+    suspend fun clearChatForCouple(myEmail: String, partnerEmail: String) {
+        dao.clearCoupleMessages(myEmail, partnerEmail)
+    }
+
     val allSnaps: Flow<List<CoupleSnap>> = dao.getAllSnapsFlow()
 
     fun getSnapsForCouple(myEmail: String, partnerEmail: String): Flow<List<CoupleSnap>> {
@@ -241,7 +295,8 @@ class HeartRepository(private val dao: HeartDao) {
         description: String,
         durationSec: Int = 10,
         senderEmail: String = "",
-        receiverEmail: String = ""
+        receiverEmail: String = "",
+        mediaUrl: String? = null
     ) {
         val exp = System.currentTimeMillis() + (durationSec * 1000L)
         val snap = CoupleSnap(
@@ -250,6 +305,7 @@ class HeartRepository(private val dao: HeartDao) {
             receiverEmail = receiverEmail,
             snapType = snapType,
             description = description,
+            mediaUrl = mediaUrl,
             durationSec = durationSec,
             expiresAt = exp,
             viewed = false
@@ -263,9 +319,9 @@ class HeartRepository(private val dao: HeartDao) {
         }
     }
 
-    suspend fun viewSnapAndTriggerStreak(snapId: Int, viewerEmail: String? = null) {
+    suspend fun viewSnapAndTriggerStreak(snapId: Int, viewerEmail: String? = null): Int {
         dao.markSnapAsViewed(snapId, System.currentTimeMillis())
-        recordSnapStreakActivity(viewerEmail)
+        return recordSnapStreakActivity(viewerEmail)
     }
 
     suspend fun alertScreenshot(snapId: Int) {
@@ -294,13 +350,15 @@ class HeartRepository(private val dao: HeartDao) {
         sender: String,
         description: String,
         imageType: String,
-        senderEmail: String = ""
+        senderEmail: String = "",
+        mediaUrl: String? = null
     ) {
         val story = CoupleStory(
             senderName = sender,
             senderEmail = senderEmail,
             description = description,
-            imageType = imageType
+            imageType = imageType,
+            mediaUrl = mediaUrl
         )
         dao.insertStory(story)
         incrementSnapScore(3)

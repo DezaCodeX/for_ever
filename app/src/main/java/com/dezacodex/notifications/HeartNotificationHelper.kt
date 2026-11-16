@@ -125,8 +125,8 @@ object HeartNotificationHelper {
 
     fun channelForType(type: String): String = when (type.uppercase()) {
         "CALL" -> CHANNEL_CALLS
-        "STREAK" -> CHANNEL_STREAKS
-        "SNAP", "SCREENSHOT" -> CHANNEL_SNAPS
+        "STREAK", "PAIRING" -> CHANNEL_STREAKS
+        "SNAP", "SCREENSHOT", "STORY" -> CHANNEL_SNAPS
         else -> CHANNEL_MESSAGES
     }
 }

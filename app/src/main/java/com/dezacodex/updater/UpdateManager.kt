@@ -40,27 +40,13 @@ class UpdateManager(private val context: Context) {
                     val releaseHtmlUrl = json.optString("html_url")
                         .ifBlank { "https://github.com/$repoOwner/$repoName/releases/latest" }
 
-                    val updateAvailable = cleanVersion(latestVersion) > cleanVersion(cleanedCurrent)
+                    val updateAvailable = isNewerVersion(latestVersion, cleanedCurrent)
                     Pair(updateAvailable, releaseHtmlUrl)
                 }
             } catch (e: Exception) {
                 Log.e("UpdateManager", "Error checking for updates", e)
                 Pair(false, null)
             }
-        }
-    }
-
-    private fun cleanVersion(version: String): Double {
-        return try {
-            val parts = version.split(".")
-            if (parts.isNotEmpty()) {
-                val major = parts[0].toDoubleOrNull() ?: 0.0
-                val minor = if (parts.size > 1) parts[1].toDoubleOrNull() ?: 0.0 else 0.0
-                val patch = if (parts.size > 2) parts[2].toDoubleOrNull() ?: 0.0 else 0.0
-                major + (minor * 0.1) + (patch * 0.01)
-            } else 0.0
-        } catch (_: Exception) {
-            0.0
         }
     }
 
@@ -74,6 +60,30 @@ class UpdateManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e("UpdateManager", "Unable to open release page", e)
             false
+        }
+    }
+
+    companion object {
+        fun parseSemverParts(version: String): Triple<Int, Int, Int> {
+            val normalized = version.trim()
+                .removePrefix("v")
+                .removePrefix("V")
+                .substringBefore("-")
+                .substringBefore("+")
+                .trim()
+            val parts = normalized.split(".")
+            val major = parts.getOrNull(0)?.toIntOrNull() ?: 0
+            val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
+            val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+            return Triple(major, minor, patch)
+        }
+
+        fun isNewerVersion(candidateVersion: String, currentVersion: String): Boolean {
+            val (candMaj, candMin, candPat) = parseSemverParts(candidateVersion)
+            val (currMaj, currMin, currPat) = parseSemverParts(currentVersion)
+            if (candMaj != currMaj) return candMaj > currMaj
+            if (candMin != currMin) return candMin > currMin
+            return candPat > currPat
         }
     }
 }

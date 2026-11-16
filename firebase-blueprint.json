@@ -44,7 +44,7 @@
         "senderUid": { "type": "string" },
         "senderName": { "type": "string" },
         "coupleRoomId": { "type": "string" },
-        "type": { "type": "string", "enum": ["MESSAGE", "CALL", "STREAK", "SNAP", "SCREENSHOT"] },
+        "type": { "type": "string", "enum": ["MESSAGE", "CALL", "STREAK", "SNAP", "SCREENSHOT", "STORY", "PAIRING"] },
         "title": { "type": "string" },
         "body": { "type": "string" },
         "isRead": { "type": "boolean" },

@@ -8,7 +8,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.ui.platform.testTag
+import com.dezacodex.ui.call.DiscordCallsView
 import com.dezacodex.ui.call.DiscordVideoCallScreen
+import com.dezacodex.ui.call.MinimizedCallFloatingBar
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -546,7 +548,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp)
-                                .testTag("google_sign_in_button"),
+                                .testTag("welcome_google_button"),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA))
                         ) {
@@ -572,7 +574,8 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
+                                .height(52.dp)
+                                .testTag("welcome_signup_button"),
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, Color(0xFFC084FC)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF7E22CE))
@@ -610,7 +613,8 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
+                                .height(52.dp)
+                                .testTag("welcome_login_button"),
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, Color(0xFFD8B4FE)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF6B21A8))
@@ -696,9 +700,12 @@ fun LoginScreen(viewModel: HeartViewModel) {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        IconButton(onClick = {
-                            viewModel.navigateTo(AppScreen.WELCOME)
-                        }) {
+                        IconButton(
+                            onClick = {
+                                viewModel.navigateTo(AppScreen.WELCOME)
+                            },
+                            modifier = Modifier.testTag("login_back_button")
+                        ) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = textPrimary)
                         }
                         Spacer(modifier = Modifier.width(4.dp))
@@ -732,7 +739,9 @@ fun LoginScreen(viewModel: HeartViewModel) {
                         onValueChange = { email = it },
                         label = { Text("Your Registered Email ID") },
                         placeholder = { Text("e.g. mohan641048@gmail.com") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("login_email_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = textFieldColors,
                         singleLine = true
@@ -746,7 +755,9 @@ fun LoginScreen(viewModel: HeartViewModel) {
                         label = { Text("Sanctuary Key / Password") },
                         placeholder = { Text("••••••••") },
                         visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("login_password_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = textFieldColors,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -781,7 +792,8 @@ fun LoginScreen(viewModel: HeartViewModel) {
                         onClick = { viewModel.handleNormalLogin(email, password) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .testTag("login_submit_button"),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E22CE))
                     ) {
@@ -907,7 +919,9 @@ fun SignupScreen(viewModel: HeartViewModel) {
                         onValueChange = { name = it },
                         label = { Text("Your Name") },
                         placeholder = { Text("e.g. Juliet Capulet") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("signup_name_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = textFieldColors,
                         singleLine = true
@@ -973,7 +987,9 @@ fun SignupScreen(viewModel: HeartViewModel) {
                         onValueChange = { email = it },
                         label = { Text("Email ID") },
                         placeholder = { Text("e.g. Juliet@forever.app") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("signup_email_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = textFieldColors,
                         singleLine = true
@@ -1003,7 +1019,9 @@ fun SignupScreen(viewModel: HeartViewModel) {
                         label = { Text("Create Password (6+ characters)") },
                         placeholder = { Text("••••••••") },
                         visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("signup_password_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = textFieldColors,
                         singleLine = true
@@ -1041,7 +1059,8 @@ fun SignupScreen(viewModel: HeartViewModel) {
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .testTag("signup_submit_button"),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E22CE))
                     ) {
@@ -1080,6 +1099,8 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
         focusedPlaceholderColor = if (isDark) Color(0xFF94A3B8) else Color.Gray,
         unfocusedPlaceholderColor = if (isDark) Color(0xFF64748B) else Color.Gray
     )
+
+    val localOtpHint by viewModel.pendingLocalOtpHint.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         while (timerCount > 0) {
@@ -1120,20 +1141,38 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "We sent a simulated security PIN code to your mobile device.\nEnter verification code to activate encryption.",
+                        text = "Enter your 6-digit verification PIN code to activate your account.",
                         textAlign = TextAlign.Center,
                         fontSize = 13.sp,
                         color = textSecondary,
                         lineHeight = 18.sp
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    localOtpHint?.let { hint ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            color = Color(0xFFF3E8FF),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(
+                                text = "Local Sandbox Verification Code: $hint",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF6B21A8),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     OutlinedTextField(
                         value = code,
                         onValueChange = { code = it },
-                        placeholder = { Text("Enter OTP (e.g. 2212)") },
-                        modifier = Modifier.width(220.dp),
+                        placeholder = { Text("Enter 6-digit OTP") },
+                        modifier = Modifier
+                            .width(220.dp)
+                            .testTag("otp_code_input"),
                         shape = RoundedCornerShape(16.dp),
                         colors = textFieldColors,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1158,7 +1197,8 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                         onClick = { viewModel.submitOtpCode(code) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .testTag("otp_verify_button"),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E22CE))
                     ) {
@@ -1168,7 +1208,10 @@ fun OtpVerifyScreen(viewModel: HeartViewModel) {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     TextButton(
-                        onClick = { timerCount = 30 },
+                        onClick = {
+                            viewModel.resendVerificationOtp()
+                            timerCount = 30
+                        },
                         enabled = timerCount == 0
                     ) {
                         Text(
@@ -1412,6 +1455,10 @@ fun MainHomeScreen(
     isPartnerSimulating: Boolean
 ) {
     var selectedTab by remember { mutableStateOf(NavigationTab.CHATS) }
+    var showNotificationsSheet by remember { mutableStateOf(false) }
+    val notificationsList by viewModel.notifications.collectAsStateWithLifecycle()
+    val unreadNotifCount = remember(notificationsList) { notificationsList.count { !it.isRead } }
+    val callUiState by viewModel.callUiState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -1489,14 +1536,44 @@ fun MainHomeScreen(
                             }
                         }
 
-                        // Logout / Options
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Notifications Center + Logout
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box {
+                                IconButton(
+                                    onClick = { showNotificationsSheet = true },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFF5F3FF))
+                                        .testTag("notifications_bell_button")
+                                ) {
+                                    Icon(Icons.Default.Notifications, "Notifications", tint = Color(0xFF7E22CE), modifier = Modifier.size(18.dp))
+                                }
+                                if (unreadNotifCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFEF4444)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = unreadNotifCount.coerceAtMost(9).toString(),
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                             IconButton(
                                 onClick = { viewModel.logout() },
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0xFFFFF0F3))
+                                    .testTag("top_logout_button")
                             ) {
                                 Icon(Icons.Default.Logout, "Logout", tint = primaryColor, modifier = Modifier.size(18.dp))
                             }
@@ -1693,9 +1770,99 @@ fun MainHomeScreen(
                 }
             }
 
-            // Falling floating hearts call particles overlay
-            if (callState == "CONNECTED") {
+            // Falling floating hearts call particles overlay (on non-CALLS tabs or voice calls)
+            if (callState == "CONNECTED" && selectedTab != NavigationTab.CALLS) {
                 FloatingHeartsAnimationOverlay()
+            }
+
+            if (callUiState.callStatus == "CONNECTED" && (callUiState.isMinimizedCallWindow || selectedTab != NavigationTab.CALLS)) {
+                MinimizedCallFloatingBar(
+                    state = callUiState,
+                    spotlightParticipant = viewModel.callController.getSpotlightParticipant(),
+                    onExpand = {
+                        viewModel.callController.setMinimizedCallWindow(false)
+                        selectedTab = NavigationTab.CALLS
+                    },
+                    onToggleMic = { viewModel.toggleMic() },
+                    onHangUp = { viewModel.hangUpCall() },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+
+            if (showNotificationsSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showNotificationsSheet = false },
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF0F172A)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                            .navigationBarsPadding()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Activity & Alerts (${notificationsList.size})", fontWeight = FontWeight.Black, fontSize = 17.sp)
+                            TextButton(onClick = { viewModel.markAllNotificationsRead() }) {
+                                Text("Mark all read", color = primaryColor, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (notificationsList.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(120.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No message, call, or streak alerts yet.", color = Color.Gray, fontSize = 13.sp)
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.heightIn(max = 360.dp)
+                            ) {
+                                items(notificationsList, key = { it.id }) { notif ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { viewModel.markNotificationRead(notif.id) },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (notif.isRead) Color(0xFFF8FAFC) else Color(0xFFFFF1F2)
+                                        ),
+                                        shape = RoundedCornerShape(14.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = when (notif.type) {
+                                                    "CALL" -> "📞"
+                                                    "STREAK", "PAIRING" -> "🔥"
+                                                    "SNAP", "SCREENSHOT" -> "📸"
+                                                    "STORY" -> "🌸"
+                                                    else -> "💬"
+                                                },
+                                                fontSize = 20.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(notif.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                                                Text(notif.body, fontSize = 12.sp, color = Color(0xFF475569))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
             }
 
             // Snapchat Disappearing Viewer Screen (Expires instantly on close)
@@ -1781,6 +1948,18 @@ fun MainHomeScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        if (!currentSnap.mediaUrl.isNullOrBlank()) {
+                                            coil.compose.AsyncImage(
+                                                model = currentSnap.mediaUrl,
+                                                contentDescription = "Snap image",
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(220.dp)
+                                                    .clip(RoundedCornerShape(16.dp))
+                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                        }
                                         Text(
                                             text = if (currentSnap.snapType == "VIDEO") "📹 Live Romantic Video" else "📸 Snap Photo",
                                             fontWeight = FontWeight.Bold,
@@ -1792,7 +1971,7 @@ fun MainHomeScreen(
                                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                                         )
 
-                                        Spacer(modifier = Modifier.height(18.dp))
+                                        Spacer(modifier = Modifier.height(14.dp))
 
                                         Text(
                                             text = currentSnap.description,
@@ -2146,6 +2325,18 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                                 .widthIn(max = 240.dp)
                         ) {
                             Column {
+                                if (!msg.mediaUrl.isNullOrBlank()) {
+                                    coil.compose.AsyncImage(
+                                        model = msg.mediaUrl,
+                                        contentDescription = "Chat image attachment",
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(150.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
                                 Text(
                                     text = msg.text,
                                     fontSize = 14.sp,
@@ -2179,6 +2370,20 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
             }
         }
 
+        val chatImagePicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                viewModel.sendMessage(
+                    text = textMessage,
+                    isDisappearing = setDisappearing,
+                    duration = disappearingTimeSec,
+                    mediaUri = uri
+                )
+                textMessage = ""
+            }
+        }
+
         // Text input dock
         Surface(
             tonalElevation = 8.dp,
@@ -2191,11 +2396,28 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = {
+                        chatImagePicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("chat_attach_image_button")
+                ) {
+                    Icon(Icons.Default.Image, "Attach Photo", tint = Color(0xFFFF4B6E))
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
                 OutlinedTextField(
                     value = textMessage,
                     onValueChange = { textMessage = it },
                     placeholder = { Text("Write lovely message... ❤️") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("chat_message_input"),
                     shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFFFF4B6E),
@@ -2213,6 +2435,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFFF4B6E))
+                        .testTag("chat_send_button")
                         .clickable {
                             if (textMessage.isNotBlank()) {
                                 viewModel.sendMessage(textMessage, setDisappearing, disappearingTimeSec)
@@ -2257,6 +2480,12 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
     var snapCaption by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf("Default Lense") }
     var snapTimer by remember { mutableStateOf(10) }
+    var selectedSnapImageUri by remember { mutableStateOf<Uri?>(null) }
+    val snapPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        selectedSnapImageUri = uri
+    }
 
     Column(
         modifier = Modifier
@@ -2332,7 +2561,7 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = if (snap.snapType == "VIDEO") "📹" else "📸",
                                         fontSize = 20.sp
@@ -2374,7 +2603,7 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
             }
 
         } else {
-            // Camera Interactive Simulator view
+            // Camera Interactive Simulator view + Photo Gallery Upload to Firebase Storage
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2400,38 +2629,63 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
                             Icon(Icons.Default.Close, "Exit", tint = Color.White)
                         }
 
-                        // Filter Indicators
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.2f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(activeFilter, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    snapPhotoPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, "Pick Photo", tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Upload Photo", color = Color.White, fontSize = 10.sp)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White.copy(alpha = 0.2f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(activeFilter, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
 
-                    // Simulation lens preview grid
+                    // Lens preview / Selected image preview
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.FilterFrames,
-                                contentDescription = "Simulated Viewplane",
-                                tint = Color(0xFFFF4B6E),
-                                modifier = Modifier.size(64.dp)
+                        if (selectedSnapImageUri != null) {
+                            coil.compose.AsyncImage(
+                                model = selectedSnapImageUri,
+                                contentDescription = "Selected snap photo",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp)
+                                    .clip(RoundedCornerShape(18.dp))
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "Lenses Active: $activeFilter",
-                                fontSize = 13.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterFrames,
+                                    contentDescription = "Simulated Viewplane",
+                                    tint = Color(0xFFFF4B6E),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Lenses Active: $activeFilter",
+                                    fontSize = 13.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
 
@@ -2491,9 +2745,15 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
 
                             Button(
                                 onClick = {
-                                    if (snapCaption.isNotBlank()) {
-                                        viewModel.sendSnap("IMAGE", "$snapCaption [$activeFilter]", snapTimer)
+                                    if (snapCaption.isNotBlank() || selectedSnapImageUri != null) {
+                                        viewModel.sendSnap(
+                                            snapType = "IMAGE",
+                                            description = "${snapCaption.ifBlank { "Snap Moment" }} [$activeFilter]",
+                                            durationSecs = snapTimer,
+                                            mediaUri = selectedSnapImageUri
+                                        )
                                         snapCaption = ""
+                                        selectedSnapImageUri = null
                                         cameraActive = false
                                     }
                                 },
@@ -2518,6 +2778,12 @@ fun SnapsView(viewModel: HeartViewModel, user: User, snapsList: List<CoupleSnap>
 fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory>) {
     var storyCaption by remember { mutableStateOf("") }
     var storyCategory by remember { mutableStateOf("MEMORIES") }
+    var selectedStoryUri by remember { mutableStateOf<Uri?>(null) }
+    val storyPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        selectedStoryUri = uri
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -2536,12 +2802,29 @@ fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Broadcast Moment Story",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 15.sp,
-                        color = Color(0xFF0F172A)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Broadcast Moment Story",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            color = Color(0xFF0F172A)
+                        )
+                        TextButton(
+                            onClick = {
+                                storyPhotoPicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            }
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, "Attach Story Image", tint = Color(0xFFFF4B6E), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (selectedStoryUri != null) "Photo Attached" else "Add Photo", color = Color(0xFFFF4B6E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
@@ -2586,9 +2869,10 @@ fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory
 
                     Button(
                         onClick = {
-                            if (storyCaption.isNotBlank()) {
-                                viewModel.shareStory(storyCaption, storyCategory)
+                            if (storyCaption.isNotBlank() || selectedStoryUri != null) {
+                                viewModel.shareStory(storyCaption, storyCategory, selectedStoryUri)
                                 storyCaption = ""
+                                selectedStoryUri = null
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -2666,11 +2950,23 @@ fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Stories beautiful sweet cover gradient
+                        // Stories cover image or gradient card
+                        if (!story.mediaUrl.isNullOrBlank()) {
+                            coil.compose.AsyncImage(
+                                model = story.mediaUrl,
+                                contentDescription = "Story photo",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(120.dp)
+                                .heightIn(min = 84.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(
                                     Brush.linearGradient(listOf(Color(0xFFFFF1F2), Color(0xFFFFE4E6)))
@@ -2701,228 +2997,13 @@ fun StoriesView(viewModel: HeartViewModel, user: User, stories: List<CoupleStory
 // -------------------------------------------------------------
 @Composable
 fun CallsView(viewModel: HeartViewModel, user: User, state: String, type: String) {
-    val cameraEnabledSelf by viewModel.cameraEnabledSelf.collectAsStateWithLifecycle()
-    val cameraEnabledPartner by viewModel.cameraEnabledPartner.collectAsStateWithLifecycle()
-    val isAutoCamSync by viewModel.isAutoCamSync.collectAsStateWithLifecycle()
     val profileState by viewModel.profile.collectAsStateWithLifecycle()
-
     val currentProfile = profileState ?: LoversProfile()
-    val activeWallpaper = currentProfile.voiceCallWallpaper ?: "Default Sky"
-
-    // Background custom brush depending on Voice wallpaper settings (copied like GB-WhatsApp style)
-    val wallpaperBrush = when (activeWallpaper) {
-        "Lovely Lavender" -> Brush.verticalGradient(
-            listOf(Color(0xFFE9D5FF), Color(0xFFC084FC), Color(0xFF5B21B6))
-        )
-        "Ocean Breeze" -> Brush.verticalGradient(
-            listOf(Color(0xFF0EA5E9), Color(0xFF0369A1), Color(0xFF0C4A6E))
-        )
-        "Sunset Rose" -> Brush.verticalGradient(
-            listOf(Color(0xFFFDA4AF), Color(0xFFF43F5E), Color(0xFF1E1B4B))
-        )
-        "Forest Serenity" -> Brush.verticalGradient(
-            listOf(Color(0xFF4ADE80), Color(0xFF15803D), Color(0xFF022C22))
-        )
-        else -> Brush.verticalGradient(
-            listOf(Color(0xFF2E1065), Color(0xFF0F172A), Color(0xFF020617)) // Deep galaxy
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        when (state) {
-            "IDLE" -> {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(6.dp, RoundedCornerShape(28.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
-                    border = BorderStroke(1.dp, Color(0xFFF3E8FF)),
-                    shape = RoundedCornerShape(28.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .background(Color(0xFFF5F3FF), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (type == "VOICE") Icons.Default.Phone else Icons.Default.Videocam,
-                                contentDescription = "Call icon",
-                                tint = Color(0xFF7E22CE),
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Couples Private Calling Booth",
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color(0xFF5B21B6)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Only connected couples accounts are authorized to initiate audio/video handshake calls in this system. All channels are custom end-to-end synchronized.",
-                            fontSize = 12.sp,
-                            color = Color(0xFF6B21A8).copy(alpha = 0.8f),
-                            lineHeight = 18.sp,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Button(
-                                onClick = { viewModel.initiateCall("VOICE") },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E22CE))
-                            ) {
-                                Icon(Icons.Default.Phone, "Voice", tint = Color.White)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Voice Call", fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = { viewModel.initiateCall("VIDEO") },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA))
-                            ) {
-                                Icon(Icons.Default.Videocam, "Video", tint = Color.White)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Video Call", fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        OutlinedButton(
-                            onClick = { viewModel.receiveSimulatedCall("VIDEO") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, Color(0xFFC084FC))
-                        ) {
-                            Icon(Icons.Default.Star, contentDescription = "Simulate", tint = Color(0xFF7E22CE))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Simulate Lover Calling You 💑✨", color = Color(0xFF7E22CE), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-            "OUTGOING", "INCOMING" -> {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(12.dp, RoundedCornerShape(32.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1B4B)), // Cozy Dark Violet
-                    border = BorderStroke(1.dp, Color(0xFF5B21B6)),
-                    shape = RoundedCornerShape(32.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(28.dp)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = if (state == "OUTGOING") "RINGING SANCTUARY HANDSHAKE..." else "INCOMING SECURE CALL REQUEST...",
-                            color = Color(0xFFC084FC),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.sp,
-                            letterSpacing = 1.5.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Heart visual wave
-                        Box(
-                            modifier = Modifier
-                                .size(110.dp)
-                                .background(Color.White.copy(alpha = 0.08f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("💑", fontSize = 54.sp)
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Text(
-                            text = if (state == "OUTGOING") "Connecting to Soulmate..." else "Incoming from Connected Couple",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 18.sp
-                        )
-
-                        Text(
-                            text = if (type == "VIDEO") "📹 Telegram-style Video" else "📞 GB-WhatsApp customizable Audio",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(32.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            if (state == "INCOMING") {
-                                Box(
-                                    modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF22C55E))
-                                        .clickable { viewModel.acceptIncomingCall() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Phone, "Answer Call", tint = Color.White, modifier = Modifier.size(28.dp))
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFEF4444))
-                                    .clickable { viewModel.hangUpCall() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.CallEnd, "Reject Call", tint = Color.White, modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    }
-                }
-            }
-            "CONNECTED" -> {
-                DiscordVideoCallScreen(
-                    engine = viewModel.callEngine,
-                    onHangUp = { viewModel.hangUpCall() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(580.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                )
-            }
-        }
-    }
+    DiscordCallsView(
+        viewModel = viewModel,
+        user = user,
+        profile = currentProfile
+    )
 }
 
 // -------------------------------------------------------------
@@ -3881,7 +3962,7 @@ fun AdminDashboardView(viewModel: HeartViewModel) {
                                 }
                             }
 
-                            if (user.email != "dezacodex@gmail.com") {
+                            if (user.email.lowercase() !in HeartViewModel.ADMIN_EMAILS) {
                                 Button(
                                     onClick = { viewModel.adminDeleteUser(user.email) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
@@ -3966,7 +4047,9 @@ fun VibrantBottomBar(
                 iconSelected = Icons.Default.ChatBubble,
                 iconUnselected = Icons.Outlined.ChatBubbleOutline,
                 label = "CHAT",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("bottom_nav_CHATS")
             )
 
             // Snaps Camera Tab
@@ -3976,7 +4059,9 @@ fun VibrantBottomBar(
                 iconSelected = Icons.Default.PhotoCamera,
                 iconUnselected = Icons.Outlined.PhotoCamera,
                 label = "CAMERA",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("bottom_nav_SNAPS")
             )
 
             // Stories Moments Tab
@@ -3986,7 +4071,9 @@ fun VibrantBottomBar(
                 iconSelected = Icons.Default.AutoAwesome,
                 iconUnselected = Icons.Outlined.AutoAwesome,
                 label = "MOMENTS",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("bottom_nav_STORIES")
             )
 
             // Calls Tab
@@ -3996,7 +4083,9 @@ fun VibrantBottomBar(
                 iconSelected = Icons.Default.Call,
                 iconUnselected = Icons.Outlined.Call,
                 label = "CALLS",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("bottom_nav_CALLS")
             )
 
             // Sanctuary Profile Tab
@@ -4006,7 +4095,9 @@ fun VibrantBottomBar(
                 iconSelected = Icons.Default.Favorite,
                 iconUnselected = Icons.Outlined.FavoriteBorder,
                 label = "SANCTUARY",
-                modifier = Modifier.weight(1.3f)
+                modifier = Modifier
+                    .weight(1.3f)
+                    .testTag("bottom_nav_PROFILE")
             )
         }
     }

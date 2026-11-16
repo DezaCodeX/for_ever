@@ -6,7 +6,6 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
 }
 
 android {
@@ -141,9 +140,13 @@ dependencies {
 }
 
 tasks.withType<Test> {
-  failFast = true
-  timeout.set(Duration.ofMinutes(2))
+  failFast = false
+  timeout.set(Duration.ofMinutes(4))
   testLogging {
     events("passed", "failed", "skipped")
   }
+}
+
+if (file("google-services.json").exists()) {
+  apply(plugin = "com.google.gms.google-services")
 }

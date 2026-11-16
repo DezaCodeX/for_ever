@@ -65,6 +65,9 @@ interface HeartDao {
     @Query("DELETE FROM love_messages")
     suspend fun clearAllMessages()
 
+    @Query("DELETE FROM love_messages WHERE (senderEmail = :myEmail AND receiverEmail = :pEmail) OR (senderEmail = :pEmail AND receiverEmail = :myEmail)")
+    suspend fun clearCoupleMessages(myEmail: String, pEmail: String)
+
     // 4. Snapchat Snaps DAOs
     @Query("SELECT * FROM couple_snaps ORDER BY timestamp DESC")
     fun getAllSnapsFlow(): Flow<List<CoupleSnap>>

@@ -1,7 +1,7 @@
 package com.dezacodex.call
 
 /**
- * Models for Discord-style multi-stream real-time video conferencing.
+ * Unified models for Discord-style multi-stream real-time video conferencing.
  */
 
 enum class CallLayoutMode {
@@ -13,6 +13,20 @@ enum class FocusTarget {
     SCREEN_SHARE,
     PARTICIPANT_CAMERA
 }
+
+enum class SimulcastTier(val label: String, val maxBitrateKbps: Int, val scaleDownBy: Double) {
+    HIGH("HD 720p", 1500, 1.0),
+    MEDIUM("SD 480p", 550, 2.0),
+    LOW("LD 240p", 160, 4.0)
+}
+
+data class SimulcastLayerConfig(
+    val rid: String,
+    val active: Boolean,
+    val maxBitrateBps: Int,
+    val scaleResolutionDownBy: Double,
+    val maxFps: Int
+)
 
 enum class AudioOutputDevice(val label: String) {
     SPEAKER("Speaker"),
@@ -91,7 +105,12 @@ data class NetworkStatsSnapshot(
     val outgoingBitrateKbps: Int = 0,
     val incomingBitrateKbps: Int = 0,
     val activeSimulcastLayer: String = "high",
-    val degradationPreference: String = "MAINTAIN_FRAMERATE"
+    val degradationPreference: String = "MAINTAIN_FRAMERATE",
+    val isMetered: Boolean = false,
+    val downKbpsEstimate: Int = 2500,
+    val activeSimulcastTier: SimulcastTier = SimulcastTier.HIGH,
+    val iceConnectionState: String = "NEW",
+    val activeTracksCount: Int = 0
 )
 
 data class CallUiState(

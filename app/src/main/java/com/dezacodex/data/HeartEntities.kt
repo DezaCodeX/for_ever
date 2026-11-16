@@ -52,6 +52,7 @@ data class LoveMessage(
     val senderEmail: String = "", // Dynamic user assignment
     val receiverEmail: String = "",
     val text: String,
+    val mediaUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val isDisappearing: Boolean = false,
     val viewed: Boolean = false,
@@ -69,6 +70,7 @@ data class CoupleSnap(
     val receiverEmail: String = "",
     val snapType: String, // "IMAGE" or "VIDEO"
     val description: String, // Description or custom drawing visual description
+    val mediaUrl: String? = null,
     val durationSec: Int = 10,
     val viewed: Boolean = false,
     val viewedTimestamp: Long = 0, // timestamp when viewed (for deletions)
@@ -77,7 +79,10 @@ data class CoupleSnap(
     val timestamp: Long = System.currentTimeMillis(),
     val isSavedInChat: Boolean = false, // Saved in chat flag
     val savedInLocalStoragePath: String = "" // Downloaded local storage file path indicator
-)
+) {
+    val localStoragePath: String
+        get() = savedInLocalStoragePath
+}
 
 @Entity(tableName = "couple_stories")
 data class CoupleStory(
@@ -85,9 +90,13 @@ data class CoupleStory(
     val senderName: String,
     val senderEmail: String = "",
     val description: String,
-    val imageType: String, // Sweet moment type (e.g. ROMANCE, MEMORIES)
+    val imageType: String = "MEMORIES", // Sweet moment type (e.g. ROMANCE, MEMORIES)
+    val mediaUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val expiresAt: Long = System.currentTimeMillis() + 24 * 60 * 60 * 1000L, // Deleted 24 hours after creation
     val isSavedInChat: Boolean = false,
     val savedInLocalStoragePath: String = ""
-)
+) {
+    val localStoragePath: String
+        get() = savedInLocalStoragePath
+}

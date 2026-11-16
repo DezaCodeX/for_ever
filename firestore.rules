@@ -35,7 +35,7 @@ service cloud.firestore {
           'email_verified' in request.auth.token &&
           request.auth.token.email_verified == true &&
           'email' in request.auth.token &&
-          request.auth.token.email == 'dezacodex@gmail.com'
+          request.auth.token.email in ['dezacodex@gmail.com', 'rdccpscollege@gmail.com']
         )
       );
     }
@@ -89,7 +89,7 @@ service cloud.firestore {
         data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
         (!('senderName' in data) || data.senderName == null || (data.senderName is string && data.senderName.size() <= 60)) &&
         data.coupleRoomId is string && data.coupleRoomId.size() >= 1 && data.coupleRoomId.size() <= 128 &&
-        data.type is string && data.type in ['MESSAGE', 'CALL', 'STREAK', 'SNAP', 'SCREENSHOT'] &&
+        data.type is string && data.type in ['MESSAGE', 'CALL', 'STREAK', 'SNAP', 'SCREENSHOT', 'STORY', 'PAIRING'] &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
         data.body is string && data.body.size() >= 1 && data.body.size() <= 500 &&
         data.isRead is bool &&

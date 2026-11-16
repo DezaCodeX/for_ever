@@ -25,13 +25,21 @@ sealed class StorageUploadResult {
 }
 
 /**
- * Handles media uploads to Firebase Storage buckets (avatars, snaps, stories, chat images)
+ * Handles media uploads to Firebase Storage buckets (avatars, snaps, stories, chat_media)
  * and real local device downloads via MediaStore / app storage without fake paths.
  */
 class FirebaseStorageRepository(
     private val context: Context,
-    private val storage: FirebaseStorage = FirebaseStorage.getInstance()
+    private val storageProvider: () -> FirebaseStorage? = {
+        try {
+            FirebaseStorage.getInstance()
+        } catch (_: Exception) {
+            null
+        }
+    }
 ) {
+    constructor(context: Context, storage: FirebaseStorage) : this(context, { storage })
+
     private val httpClient = OkHttpClient()
 
     suspend fun uploadImageUri(
@@ -55,6 +63,10 @@ class FirebaseStorageRepository(
         storagePath: String,
         bytes: ByteArray
     ): StorageUploadResult = withContext(Dispatchers.IO) {
+        val storage = storageProvider()
+            ?: return@withContext StorageUploadResult.RequiresConfiguration(
+                "Firebase Storage is not initialized in this environment (google-services.json required)."
+            )
         try {
             val ref = storage.reference.child(storagePath)
             ref.putBytes(bytes).await()
@@ -81,7 +93,7 @@ class FirebaseStorageRepository(
     }
 
     /**
-     * Writes real bytes (from HTTPS URL or renders a crisp fallback text card file) into Downloads/MediaStore.
+     * Writes real bytes (from HTTPS URL or crisp fallback text card file) into Downloads/MediaStore.
      */
     suspend fun saveMediaToDeviceDownloads(
         filename: String,
@@ -109,12 +121,23 @@ class FirebaseStorageRepository(
                     put(MediaStore.Downloads.MIME_TYPE, if (safeName.endsWith(".jpg")) "image/jpeg" else "text/plain")
                     put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/HeartSync")
                 }
-                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                val uri = try {
+                    context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                } catch (_: Exception) {
+                    null
+                }
                 if (uri != null) {
-                    context.contentResolver.openOutputStream(uri)?.use { out ->
-                        out.write(payloadBytes)
+                    val written = try {
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            out.write(payloadBytes)
+                            true
+                        } ?: false
+                    } catch (_: Exception) {
+                        false
                     }
-                    return@withContext Result.success(uri.toString())
+                    if (written) {
+                        return@withContext Result.success(uri.toString())
+                    }
                 }
             }
 

@@ -608,7 +608,7 @@ private fun VoiceCallRoom(
                         icon = Icons.Default.CallEnd,
                         label = "Leave",
                         danger = true,
-                        testTag = "btn_leave_call",
+                        testTag = "btn_end_call",
                         onClick = onHangUp
                     )
                 }
@@ -703,6 +703,25 @@ private fun DiscordVideoCallStage(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Grid / Focus toggle
+                IconButton(
+                    onClick = {
+                        onSetLayoutMode(
+                            if (state.layoutMode == CallLayoutMode.GRID) CallLayoutMode.FOCUS
+                            else CallLayoutMode.GRID
+                        )
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("btn_toggle_layout")
+                ) {
+                    Icon(
+                        imageVector = if (state.layoutMode == CallLayoutMode.GRID) Icons.Default.ViewSidebar else Icons.Default.GridView,
+                        contentDescription = "Toggle Grid or Focus View",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
                 Surface(
                     color = Color(0xFF1E2436),
                     shape = RoundedCornerShape(10.dp),
@@ -888,7 +907,7 @@ private fun DiscordVideoCallStage(
                     icon = Icons.Default.CallEnd,
                     label = "Leave",
                     danger = true,
-                    testTag = "btn_leave_call",
+                    testTag = "btn_end_call",
                     onClick = onHangUp
                 )
             }

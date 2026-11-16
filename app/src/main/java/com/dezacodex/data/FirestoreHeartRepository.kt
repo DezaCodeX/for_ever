@@ -425,6 +425,71 @@ class FirestoreHeartRepository(
             }
     }
 
+    suspend fun markNotificationRead(uid: String, notificationId: String): Result<Unit> {
+        val path = "users/$uid/notifications/$notificationId"
+        return try {
+            firestore.collection("users").document(uid)
+                .collection("notifications").document(notificationId)
+                .update(mapOf("isRead" to true, "updatedAt" to FieldValue.serverTimestamp()))
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            FirestoreErrorHandler.handleFirestoreError(e, OperationType.UPDATE, path, auth)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markAllNotificationsRead(uid: String, notificationIds: List<String>): Result<Unit> {
+        if (notificationIds.isEmpty()) return Result.success(Unit)
+        val path = "users/$uid/notifications"
+        return try {
+            val batch = firestore.batch()
+            val col = firestore.collection("users").document(uid).collection("notifications")
+            notificationIds.take(100).forEach { id ->
+                batch.update(col.document(id), mapOf("isRead" to true, "updatedAt" to FieldValue.serverTimestamp()))
+            }
+            batch.commit().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            FirestoreErrorHandler.handleFirestoreError(e, OperationType.UPDATE, path, auth)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncCoupleStreakAndScore(
+        roomId: String,
+        uid: String,
+        streakCount: Int,
+        totalScore: Int
+    ): Result<Unit> {
+        val path = "couple_rooms/$roomId"
+        return try {
+            val batch = firestore.batch()
+            batch.update(
+                firestore.collection("couple_rooms").document(roomId),
+                mapOf(
+                    "streakCount" to streakCount.coerceAtLeast(0),
+                    "totalScore" to totalScore.coerceAtLeast(0),
+                    "lastInteractionAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.update(
+                firestore.collection("users").document(uid),
+                mapOf(
+                    "streakCount" to streakCount.coerceAtLeast(0),
+                    "snapScore" to totalScore.coerceAtLeast(0),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            FirestoreErrorHandler.handleFirestoreError(e, OperationType.UPDATE, path, auth)
+            Result.failure(e)
+        }
+    }
+
     // ---------------------------------------------------------
     // DISCORD-STYLE CALL ROOMS, PARTICIPANTS & WEBRTC SIGNALS
     // ---------------------------------------------------------

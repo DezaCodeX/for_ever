@@ -12,7 +12,7 @@ import javax.crypto.spec.PBEKeySpec
  */
 object PasswordHasher {
     private const val PREFIX = "pbkdf2"
-    private const val ITERATIONS = 10_000
+    private const val ITERATIONS = 65_536
     private const val KEY_LENGTH_BITS = 256
     private const val SALT_BYTES = 16
     private val secureRandom = SecureRandom()
@@ -93,10 +93,15 @@ object InputValidator {
         if (email.trim().isEmpty()) return "Email address is required."
         if (!isValidEmail(email)) return "Please enter a valid email address."
         if (password.isEmpty()) return "Password is required."
+        if (password.length < 6) return "Password must be at least 6 characters long."
         return null
     }
 
-    fun sanitizeDisplayText(input: String, maxLen: Int = 500): String {
-        return input.trim().take(maxLen)
+    fun sanitizeDisplayText(input: String, maxLength: Int = 500): String {
+        val cleaned = input
+            .replace("\u0000", "")
+            .filter { ch -> ch == '\n' || ch == '\t' || !ch.isISOControl() }
+            .trim()
+        return cleaned.take(maxLength.coerceAtLeast(0))
     }
 }

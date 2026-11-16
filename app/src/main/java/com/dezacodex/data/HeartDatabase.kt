@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         CoupleSnap::class,
         CoupleStory::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class HeartDatabase : RoomDatabase() {
