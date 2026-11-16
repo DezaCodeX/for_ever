@@ -26,6 +26,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
 enum class AppScreen {
@@ -289,10 +291,9 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     private fun appendLocalNotification(type: String, title: String, body: String, senderName: String) {
         val localNotif = FirestoreUserNotification(
             id = "local_${System.currentTimeMillis()}_${notifiedIds.size}",
-            recipientUid = _currentUser.value?.email ?: "local",
             senderUid = senderName,
             senderName = senderName,
-            coupleRoomId = _activeCoupleRoom.value?.roomId,
+            coupleRoomId = _activeCoupleRoom.value?.roomId.orEmpty(),
             type = type,
             title = title,
             body = body,
@@ -306,19 +307,23 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         _notifications.value = _notifications.value.map {
             if (it.id == notificationId) it.copy(isRead = true) else it
         }
-        if (isCloudConnected && !notificationId.startsWith("local_")) {
+        val uid = firebaseAuth?.currentUser?.uid
+        if (isCloudConnected && uid != null && !notificationId.startsWith("local_")) {
             viewModelScope.launch {
-                firestoreRepo?.markNotificationRead(notificationId)
+                firestoreRepo?.markNotificationRead(uid, notificationId)
             }
         }
     }
 
     fun markAllNotificationsRead() {
+        val cloudUnreadIds = _notifications.value
+            .filter { !it.isRead && !it.id.startsWith("local_") }
+            .map { it.id }
         _notifications.value = _notifications.value.map { it.copy(isRead = true) }
         val uid = firebaseAuth?.currentUser?.uid
-        if (isCloudConnected && uid != null) {
+        if (isCloudConnected && uid != null && cloudUnreadIds.isNotEmpty()) {
             viewModelScope.launch {
-                firestoreRepo?.markAllNotificationsRead(uid)
+                firestoreRepo?.markAllNotificationsRead(uid, cloudUnreadIds)
             }
         }
     }
@@ -844,7 +849,6 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 legacy.copy(
                     myName = updatedSelf.username,
                     partnerName = partnerUser.username,
-                    isCoupleLinked = true,
                     streakCount = maxOf(1, legacy.streakCount),
                     totalScore = legacy.totalScore + 15
                 )
@@ -960,8 +964,8 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
                 fsRepo.syncCoupleStreakAndScore(
                     roomId = room.roomId,
                     uid = fbUid,
-                    newStreakCount = updatedStreak,
-                    newSnapScore = updatedUser?.snapScore ?: (user.snapScore + 1)
+                    streakCount = updatedStreak,
+                    totalScore = updatedUser?.snapScore ?: (user.snapScore + 1)
                 )
                 val partnerUid = room.memberUids.firstOrNull { it != fbUid }
                 if (!partnerUid.isNullOrBlank()) {
@@ -1513,6 +1517,8 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
     // -------------------------------------------------------------
     // CALLS: DISCORD-STYLE MULTI-STREAM WEBRTC + NOTIFICATIONS
     // -------------------------------------------------------------
+    private val profileUpdateMutex = Mutex()
+
     fun updateRingtoneSettings(
         notificationTone: String,
         callRingtone: String,
@@ -1520,23 +1526,27 @@ class HeartViewModel(application: Application) : AndroidViewModel(application) {
         vibration: String
     ) {
         viewModelScope.launch {
-            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
-            repository.updateProfile(
-                legacy.copy(
-                    notificationTone = notificationTone,
-                    callRingtone = callRingtone,
-                    videoCallRingtone = videoCallRingtone,
-                    vibrationIntensity = vibration
+            profileUpdateMutex.withLock {
+                val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
+                repository.updateProfile(
+                    legacy.copy(
+                        notificationTone = notificationTone,
+                        callRingtone = callRingtone,
+                        videoCallRingtone = videoCallRingtone,
+                        vibrationIntensity = vibration
+                    )
                 )
-            )
+            }
             _authError.value = "Tones & vibration updated!"
         }
     }
 
     fun updateVoiceWallpaper(wallpaper: String) {
         viewModelScope.launch {
-            val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
-            repository.updateProfile(legacy.copy(voiceCallWallpaper = wallpaper))
+            profileUpdateMutex.withLock {
+                val legacy = database.heartDao().getProfileDirect() ?: LoversProfile()
+                repository.updateProfile(legacy.copy(voiceCallWallpaper = wallpaper))
+            }
             _authError.value = "Call background updated to: $wallpaper"
         }
     }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -295,10 +296,8 @@ class DiscordVideoConferencingTest {
     fun `scenario 14 - signaling client parses sdp offers, ice candidates, media state, and ignores malformed json`() {
         val client = WebSocketSignalingClient()
         val emitted = mutableListOf<SignalingEvent>()
-        val job = kotlinx.coroutines.run {
-            kotlinx.coroutines.CoroutineScope(testDispatcher).launchCollect(client.events) {
-                emitted.add(it)
-            }
+        val job = CoroutineScope(testDispatcher).launchCollect(client.events) {
+            emitted.add(it)
         }
 
         client.parseMessage("""{"type":"peer-joined","peerId":"p2","displayName":"Sophia"}""")
@@ -320,7 +319,7 @@ class DiscordVideoConferencingTest {
     private fun <T> CoroutineScope.launchCollect(
         flow: kotlinx.coroutines.flow.SharedFlow<T>,
         onEach: (T) -> Unit
-    ) = kotlinx.coroutines.launch {
+    ) = launch {
         flow.collect { onEach(it) }
     }
 

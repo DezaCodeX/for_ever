@@ -8,7 +8,8 @@ import android.os.Build
 enum class AudioOutputRoute(val label: String) {
     SPEAKER("Speaker"),
     EARPIECE("Earpiece"),
-    BLUETOOTH("Bluetooth")
+    BLUETOOTH("Bluetooth"),
+    WIRED_HEADSET("Wired Headset")
 }
 
 /**
@@ -32,13 +33,16 @@ class AudioRoutingManager(context: Context) {
                 AudioOutputRoute.BLUETOOTH -> AudioDeviceInfo.TYPE_BLUETOOTH_SCO
                 AudioOutputRoute.SPEAKER -> AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
                 AudioOutputRoute.EARPIECE -> AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                AudioOutputRoute.WIRED_HEADSET -> AudioDeviceInfo.TYPE_WIRED_HEADSET
             }
             val devices = audioManager.availableCommunicationDevices
             val matching = devices.firstOrNull { it.type == targetType }
-                ?: if (route == AudioOutputRoute.BLUETOOTH) {
-                    devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLE_HEADSET }
-                } else {
-                    null
+                ?: when (route) {
+                    AudioOutputRoute.BLUETOOTH -> devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLE_HEADSET }
+                    AudioOutputRoute.WIRED_HEADSET -> devices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                    }
+                    else -> null
                 }
             if (matching != null) {
                 audioManager.setCommunicationDevice(matching)
@@ -58,7 +62,7 @@ class AudioRoutingManager(context: Context) {
                 audioManager.isBluetoothScoOn = false
                 audioManager.isSpeakerphoneOn = true
             }
-            AudioOutputRoute.EARPIECE -> {
+            AudioOutputRoute.EARPIECE, AudioOutputRoute.WIRED_HEADSET -> {
                 audioManager.isBluetoothScoOn = false
                 audioManager.isSpeakerphoneOn = false
             }

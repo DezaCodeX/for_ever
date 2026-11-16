@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ScreenShare
 import androidx.compose.material.icons.automirrored.filled.StopScreenShare
@@ -98,7 +100,7 @@ fun DiscordCallsView(
             needed.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (needed.isNotEmpty()) {
-            permissionLauncher.launch(needed.toTypedArray())
+            runCatching { permissionLauncher.launch(needed.toTypedArray()) }
         }
     }
 
@@ -246,7 +248,8 @@ private fun CallLobbyCard(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(12.dp),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -255,16 +258,16 @@ private fun CallLobbyCard(
                 .widthIn(max = 560.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
             border = BorderStroke(1.dp, Color(0xFFF3E8FF)),
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(24.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(52.dp)
                         .background(Color(0xFFF5F3FF), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -272,28 +275,30 @@ private fun CallLobbyCard(
                         imageVector = if (callType == "VOICE") Icons.Default.Phone else Icons.Default.Videocam,
                         contentDescription = "Call icon",
                         tint = Color(0xFF7E22CE),
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "Couples Private Calling Booth",
-                    fontSize = 19.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Black,
                     color = Color(0xFF5B21B6),
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Discord-grade multi-stream WebRTC calls with simultaneous webcam & screen sharing, real-time VAD active speaker focus, simulcast quality control, and PiP.",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = Color(0xFF6B21A8).copy(alpha = 0.8f),
-                    lineHeight = 18.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     color = Color(0xFFF5F3FF),
                     shape = RoundedCornerShape(10.dp)
@@ -303,15 +308,15 @@ private fun CallLobbyCard(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF7E22CE),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
                         onClick = onVoiceCall,
@@ -699,7 +704,7 @@ private fun DiscordVideoCallStage(
             }
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Grid / Focus toggle
@@ -711,20 +716,20 @@ private fun DiscordVideoCallStage(
                         )
                     },
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(30.dp)
                         .testTag("btn_toggle_layout")
                 ) {
                     Icon(
                         imageVector = if (state.layoutMode == CallLayoutMode.GRID) Icons.Default.ViewSidebar else Icons.Default.GridView,
                         contentDescription = "Toggle Grid or Focus View",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 Surface(
                     color = Color(0xFF1E2436),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, Color(0xFF2B3245))
                 ) {
                     Row(modifier = Modifier.padding(2.dp)) {
@@ -746,28 +751,28 @@ private fun DiscordVideoCallStage(
                 IconButton(
                     onClick = onToggleHideNonVideo,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(30.dp)
                         .testTag("btn_toggle_non_video")
                 ) {
                     Icon(
                         imageVector = if (state.hideNonVideoParticipants) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = "Toggle non-video participants",
                         tint = if (state.hideNonVideoParticipants) Color(0xFFFBBF24) else Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 IconButton(
                     onClick = onShowParticipants,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(30.dp)
                         .testTag("btn_participants_list")
                 ) {
                     Icon(
                         imageVector = Icons.Default.People,
                         contentDescription = "View participants",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
@@ -775,14 +780,14 @@ private fun DiscordVideoCallStage(
                     IconButton(
                         onClick = onEnterPip,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(30.dp)
                             .testTag("btn_enter_pip")
                     ) {
                         Icon(
                             imageVector = Icons.Default.PictureInPictureAlt,
                             contentDescription = "Picture in Picture",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -790,14 +795,14 @@ private fun DiscordVideoCallStage(
                 IconButton(
                     onClick = onMinimize,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(30.dp)
                         .testTag("btn_minimize_call")
                 ) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Minimize Call",
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -1325,16 +1330,16 @@ private fun LayoutChip(
 ) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(if (selected) Color(0xFF7E22CE) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
             .testTag(testTag)
     ) {
         Text(
             text = label,
             color = if (selected) Color.White else Color(0xFF94A3B8),
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold
         )
     }
@@ -1359,15 +1364,15 @@ private fun CallControlCircleButton(
         IconButton(
             onClick = onClick,
             modifier = Modifier
-                .size(48.dp)
+                .size(40.dp)
                 .clip(CircleShape)
                 .background(bgColor)
                 .testTag(testTag)
         ) {
-            Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(18.dp))
         }
-        Spacer(modifier = Modifier.height(3.dp))
-        Text(label, color = Color(0xFFCBD5E1), fontSize = 9.sp, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(label, color = Color(0xFFCBD5E1), fontSize = 8.sp, fontWeight = FontWeight.Medium)
     }
 }
 

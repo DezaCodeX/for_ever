@@ -53,6 +53,7 @@ class FeatureAuditUnitTest {
     @Test
     fun `pairing linkCouple pairs two users, sets streaks to at least 1, and adds 15 score`() = runBlocking {
         repo.ensureProfileExists()
+        val beforeScore = dao.getProfileDirect()!!.totalScore
         val alice = repo.registerUser("alice@hs.test", "Alice", "Password123")
         val bob = repo.registerUser("bob@hs.test", "Bob", "Password123")
 
@@ -65,7 +66,7 @@ class FeatureAuditUnitTest {
         assertThat(updatedAlice.connectedPartnerEmail).isEqualTo("bob@hs.test")
         assertThat(updatedBob.connectedPartnerEmail).isEqualTo("alice@hs.test")
         assertThat(updatedAlice.streakCount).isAtLeast(1)
-        assertThat(profile.totalScore).isEqualTo(15)
+        assertThat(profile.totalScore).isEqualTo(beforeScore + 15)
     }
 
     @Test
@@ -118,7 +119,7 @@ class FeatureAuditUnitTest {
     }
 
     @Test
-    fun `chat getMessagesForCouple isolates conversation from third-party messages`() = runBlocking {
+    fun `chat getMessagesForCouple isolates conversation from third-party messages`(): Unit = runBlocking {
         repo.sendMessage("Alice", "Secret for Bob", senderEmail = "alice@hs.test", receiverEmail = "bob@hs.test")
         repo.sendMessage("Eve", "Unrelated", senderEmail = "eve@hs.test", receiverEmail = "mallory@hs.test")
 
@@ -136,7 +137,7 @@ class FeatureAuditUnitTest {
     }
 
     @Test
-    fun `chat purgeExpiredDisappearingMessages deletes expired unsaved items but keeps saved ones`() = runBlocking {
+    fun `chat purgeExpiredDisappearingMessages deletes expired unsaved items but keeps saved ones`(): Unit = runBlocking {
         val now = 1_000_000L
         dao.insertMessage(
             LoveMessage(
@@ -198,7 +199,7 @@ class FeatureAuditUnitTest {
 
     @Test
     fun `snaps viewSnapAndTriggerStreak marks viewed and increments streak synced`() = runBlocking {
-        repo.ensureProfileExists()
+        dao.updateProfile(LoversProfile(streakCount = 0, lastInteractionTime = 0L))
         repo.registerUser("alice@hs.test", "Alice", "Password123")
         repo.sendSnap("Bob", "IMAGE", "Morning", 10, "bob@hs.test", "alice@hs.test")
         val snap = repo.getSnapsForCouple("alice@hs.test", "bob@hs.test").first().first()
@@ -256,7 +257,7 @@ class FeatureAuditUnitTest {
     }
 
     @Test
-    fun `stories getStoriesForCouple scopes stories between couple members`() = runBlocking {
+    fun `stories getStoriesForCouple scopes stories between couple members`(): Unit = runBlocking {
         val alice = repo.registerUser("alice@hs.test", "Alice", "Password123")
         val bob = repo.registerUser("bob@hs.test", "Bob", "Password123")
         repo.linkCouple(alice.email, bob.inviteCode)
@@ -395,7 +396,7 @@ class FeatureAuditUnitTest {
     }
 
     @Test
-    fun `admin getAllUsers and deleteUserAccount manage registered users cleanly`() = runBlocking {
+    fun `admin getAllUsers and deleteUserAccount manage registered users cleanly`(): Unit = runBlocking {
         repo.registerUser("u1@hs.test", "U1", "Pass1234")
         repo.registerUser("u2@hs.test", "U2", "Pass1234")
         assertThat(repo.getAllUsers()).hasSize(2)

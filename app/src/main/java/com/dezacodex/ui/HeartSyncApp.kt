@@ -475,68 +475,70 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .padding(24.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 // Hero Icon Card
                 Box(
                     modifier = Modifier
-                        .size(110.dp)
-                        .shadow(12.dp, CircleShape)
+                        .size(72.dp)
+                        .shadow(10.dp, CircleShape)
                         .background(Color.White.copy(alpha = 0.9f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Favorite,
                         contentDescription = "Love logo",
-                        tint = Color(0xFFA855F7), // Elegant Lavender primary
-                        modifier = Modifier.size(58.dp)
+                        tint = Color(0xFFA855F7),
+                        modifier = Modifier.size(40.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = "for∞ever♥︎",
-                    fontSize = 32.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
-                    color = Color(0xFF5B21B6), // Gorgeous deep purple-lavender
+                    color = Color(0xFF5B21B6),
                     textAlign = TextAlign.Center,
                     letterSpacing = (-0.5).sp
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Secure Sanctuary for Couples",
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF6B21A8),
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = "Synchronize live private messages, gorgeous Snapchat-style moments, and customized fullscreen calling spaces safely built for connected couples.",
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = Color(0xFF5B21B6).copy(alpha = 0.82f),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 8.dp),
-                    lineHeight = 19.sp
+                    lineHeight = 16.sp,
+                    maxLines = 2
                 )
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f), contentColor = Color(0xFF1E293B)),
                     border = BorderStroke(1.dp, Color(0xFFE9D5FF))
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
+                        modifier = Modifier.padding(14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // 1. Google Sign-In via Credential Manager + Firebase Auth
@@ -547,15 +549,15 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             enabled = !isAuthLoading,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .height(46.dp)
                                 .testTag("welcome_google_button"),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA))
                         ) {
                             if (isAuthLoading) {
                                 CircularProgressIndicator(
                                     color = Color.White,
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(18.dp),
                                     strokeWidth = 2.dp
                                 )
                             } else {
@@ -565,7 +567,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // 2. Create Account Option right below Continue with Google
                         OutlinedButton(
@@ -574,9 +576,9 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .height(46.dp)
                                 .testTag("welcome_signup_button"),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             border = BorderStroke(1.dp, Color(0xFFC084FC)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF7E22CE))
                         ) {
@@ -585,7 +587,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             Text("Create New Account 💖", fontWeight = FontWeight.Bold)
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -594,14 +596,14 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFFE9D5FF)))
                             Text(
                                 text = " or use credentials ",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 color = Color(0xFF7E22CE).copy(alpha = 0.6f),
                                 fontWeight = FontWeight.Bold
                             )
                             Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFFE9D5FF)))
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // 3. Email Option
                         Button(
@@ -613,9 +615,9 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .height(46.dp)
                                 .testTag("welcome_login_button"),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             border = BorderStroke(1.dp, Color(0xFFD8B4FE)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF6B21A8))
                         ) {
@@ -625,6 +627,7 @@ fun WelcomeScreen(viewModel: HeartViewModel) {
                         }
                     }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
             }
 
             // Bottom Copyright Policy Label
@@ -1473,17 +1476,16 @@ fun MainHomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                            .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Double Border Avatar Frame
                             Box(
-                                modifier = Modifier.size(46.dp),
+                                modifier = Modifier.size(36.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Box(
@@ -1505,13 +1507,13 @@ fun MainHomeScreen(
                                             text = (currentUser.connectedPartnerEmail?.take(1) ?: "P").uppercase(),
                                             color = Color.White,
                                             fontWeight = FontWeight.Black,
-                                            fontSize = 16.sp
+                                            fontSize = 14.sp
                                         )
                                     }
                                 }
                                 Box(
                                     modifier = Modifier
-                                        .size(10.dp)
+                                        .size(9.dp)
                                         .clip(CircleShape)
                                         .background(Color(0xFF22C55E))
                                         .border(width = 1.5.dp, color = Color.White, shape = CircleShape)
@@ -1522,38 +1524,38 @@ fun MainHomeScreen(
                             Column {
                                 Text(
                                     text = "SOULMATE SYNC",
-                                    fontSize = 9.sp,
+                                    fontSize = 8.sp,
                                     fontWeight = FontWeight.Black,
                                     color = primaryColor,
                                     letterSpacing = 1.sp
                                 )
                                 Text(
                                     text = (currentUser.connectedPartnerEmail?.split("@")?.get(0) ?: "Sophia").replaceFirstChar { it.uppercase() },
-                                    fontSize = 17.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = Color(0xFF0F172A)
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1
                                 )
                             }
                         }
 
-                        // Notifications Center + Logout
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box {
                                 IconButton(
                                     onClick = { showNotificationsSheet = true },
                                     modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .size(34.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .background(Color(0xFFF5F3FF))
                                         .testTag("notifications_bell_button")
                                 ) {
-                                    Icon(Icons.Default.Notifications, "Notifications", tint = Color(0xFF7E22CE), modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Notifications, "Notifications", tint = Color(0xFF7E22CE), modifier = Modifier.size(16.dp))
                                 }
                                 if (unreadNotifCount > 0) {
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
-                                            .size(16.dp)
+                                            .size(15.dp)
                                             .clip(CircleShape)
                                             .background(Color(0xFFEF4444)),
                                         contentAlignment = Alignment.Center
@@ -1561,7 +1563,7 @@ fun MainHomeScreen(
                                         Text(
                                             text = unreadNotifCount.coerceAtMost(9).toString(),
                                             color = Color.White,
-                                            fontSize = 9.sp,
+                                            fontSize = 8.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -1570,79 +1572,77 @@ fun MainHomeScreen(
                             IconButton(
                                 onClick = { viewModel.logout() },
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
                                     .background(Color(0xFFFFF0F3))
                                     .testTag("top_logout_button")
                             ) {
-                                Icon(Icons.Default.Logout, "Logout", tint = primaryColor, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Logout, "Logout", tint = primaryColor, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
 
-                    // Streaks & Snap Score stats pill header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(horizontal = 14.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Streaks Block
                         Card(
                             modifier = Modifier
                                 .weight(1f)
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                                .shadow(1.dp, RoundedCornerShape(12.dp)),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9FA)),
                             border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                                    .padding(vertical = 4.dp, horizontal = 8.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("🔥", fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("🔥", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "${currentUser.streakCount} Snaps Active",
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE11D48)
+                                    color = Color(0xFFE11D48),
+                                    maxLines = 1
                                 )
                             }
                         }
 
-                        // Scores Block
                         Card(
                             modifier = Modifier
                                 .weight(1f)
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                                .shadow(1.dp, RoundedCornerShape(12.dp)),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9FA)),
                             border = BorderStroke(1.dp, Color(0xFFFCE7EC)),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                                    .padding(vertical = 4.dp, horizontal = 8.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("✨", fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("✨", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "${currentUser.snapScore} Snap Score",
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE11D48)
+                                    color = Color(0xFFE11D48),
+                                    maxLines = 1
                                 )
                             }
                         }
                     }
 
-                    // Firebase Cloud Sync / Local Cache Notice
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1650,13 +1650,13 @@ fun MainHomeScreen(
                                 if (viewModel.isCloudConnected) Color(0xFF22C55E).copy(alpha = 0.08f)
                                 else Color(0xFFFF9F0A).copy(alpha = 0.08f)
                             )
-                            .padding(vertical = 4.dp, horizontal = 16.dp),
+                            .padding(vertical = 2.dp, horizontal = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = if (viewModel.isCloudConnected) "FIREBASE CLOUD SYNC ACTIVE" else "OFFLINE LOCAL CACHE ACTIVE",
-                            fontSize = 9.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Black,
                             color = if (viewModel.isCloudConnected) Color(0xFF16A34A) else Color(0xFFD97706)
                         )
@@ -2200,7 +2200,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White.copy(alpha = 0.92f))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2212,19 +2212,20 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                     imageVector = if (setDisappearing) Icons.Default.Timer else Icons.Default.TimerOff,
                     contentDescription = "Disappearing timer",
                     tint = if (setDisappearing) Color(0xFFFF4B6E) else Color(0xFF94A3B8),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(14.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (setDisappearing) "Disappearing Active (${disappearingTimeSec}s)" else "Ephemeral Off",
-                    fontSize = 11.sp,
+                    text = if (setDisappearing) "Disappearing (${disappearingTimeSec}s)" else "Ephemeral Off",
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (setDisappearing) Color(0xFFFF4B6E) else Color(0xFF64748B)
+                    color = if (setDisappearing) Color(0xFFFF4B6E) else Color(0xFF64748B),
+                    maxLines = 1
                 )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Brush, "Wallpapers", tint = Color(0xFFFF4B6E), modifier = Modifier.size(13.dp))
+                Icon(Icons.Default.Brush, "Wallpapers", tint = Color(0xFFFF4B6E), modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 listOf("Default", "Sunset", "Nights").forEach { wall ->
                     Box(
@@ -2247,7 +2248,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                                     else -> "Cozy Pink"
                                 }
                             }
-                            .padding(horizontal = 7.dp, vertical = 3.dp)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = wall,
@@ -2266,9 +2267,9 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(vertical = 6.dp)
         ) {
             items(messages) { msg ->
                 val isMe = msg.senderEmail == user.email || msg.senderName == user.username
@@ -2291,7 +2292,6 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (!isMe) {
-                            // Quick emoji popup selectors decoration
                             QuickEmojiReactionRow(msg.id, viewModel)
                         }
 
@@ -2321,7 +2321,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                                         bottomEnd = if (isMe) 2.dp else 16.dp
                                     )
                                 )
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                                 .widthIn(max = 240.dp)
                         ) {
                             Column {
@@ -2332,7 +2332,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(150.dp)
+                                            .height(140.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
@@ -2393,7 +2393,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -2403,7 +2403,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                         )
                     },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .testTag("chat_attach_image_button")
                 ) {
                     Icon(Icons.Default.Image, "Attach Photo", tint = Color(0xFFFF4B6E))
@@ -2414,7 +2414,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                 OutlinedTextField(
                     value = textMessage,
                     onValueChange = { textMessage = it },
-                    placeholder = { Text("Write lovely message... ❤️") },
+                    placeholder = { Text("Write message... ❤️", maxLines = 1, fontSize = 12.sp) },
                     modifier = Modifier
                         .weight(1f)
                         .testTag("chat_message_input"),
@@ -2425,7 +2425,7 @@ fun ChatView(viewModel: HeartViewModel, user: User, messages: List<LoveMessage>)
                         focusedContainerColor = Color(0xFFFFF9FA),
                         unfocusedContainerColor = Color(0xFFFFF9FA)
                     ),
-                    maxLines = 3
+                    singleLine = true
                 )
                 
                 Spacer(modifier = Modifier.width(8.dp))

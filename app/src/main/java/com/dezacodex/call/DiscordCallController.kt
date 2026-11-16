@@ -55,7 +55,7 @@ class DiscordCallController(
 
     private fun wireWebRtcCallbacks() {
         webRtcEngine.onIceCandidateGenerated = { peerId, sdpMid, sdpMLineIndex, candidate ->
-            signalingClient.sendIceCandidate(peerId, sdpMid, sdpMLineIndex, candidate)
+            signalingClient.sendIceCandidate(peerId, sdpMid ?: "0", sdpMLineIndex, candidate)
         }
         webRtcEngine.onRemoteTrackAdded = { peerId, trackId, isScreenShare ->
             updateParticipant(peerId) { existing ->
@@ -244,7 +244,9 @@ class DiscordCallController(
         }
 
         scope.launch {
-            delay(1400)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                delay(650)
+            }
             if (_uiState.value.callStatus == "OUTGOING") {
                 activateConnectedCallSession(roomId, signalingUrl)
             }

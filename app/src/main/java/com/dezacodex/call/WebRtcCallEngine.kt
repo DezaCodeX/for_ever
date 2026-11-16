@@ -48,12 +48,6 @@ import org.webrtc.VideoTrack
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-enum class SimulcastTier(val label: String, val maxBitrateKbps: Int, val scaleDownBy: Double) {
-    HIGH("HD 720p", 1500, 1.0),
-    MEDIUM("SD 480p", 550, 2.0),
-    LOW("LD 240p", 160, 4.0)
-}
-
 data class SimulcastLayerSpec(
     val rid: String,
     val scaleResolutionDownBy: Double,
@@ -295,7 +289,13 @@ class WebRtcCallEngine(
 
     fun buildSimulcastEncodings(): List<RtpParameters.Encoding> {
         return buildSimulcastEncodingsForPreset(activePreset).map { spec ->
-            RtpParameters.Encoding(spec.rid, spec.active, spec.scaleResolutionDownBy).apply {
+            val standardRid = when (spec.rid) {
+                "low" -> "q"
+                "mid" -> "h"
+                "high" -> "f"
+                else -> spec.rid
+            }
+            RtpParameters.Encoding(standardRid, spec.active, spec.scaleResolutionDownBy).apply {
                 maxBitrateBps = spec.maxBitrateBps
                 maxFramerate = spec.maxFramerate
             }
