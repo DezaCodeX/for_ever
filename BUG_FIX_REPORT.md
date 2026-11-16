@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-During the full-stack architecture inspection, security audit, Discord-style WebRTC video conferencing integration, and automated unit/UI/Firestore-rules verification, **14 concrete bugs and architectural defects** were identified, reproduced, fixed at their root causes, and verified with automated tests.
+During the full-stack architecture inspection, security audit, Discord-style WebRTC video conferencing integration, and automated unit/UI/Firestore-rules verification, **16 concrete bugs and architectural defects** were identified, reproduced, fixed at their root causes, and verified with automated tests.
 
 ---
 
@@ -142,3 +142,12 @@ During the full-stack architecture inspection, security audit, Discord-style Web
 - **Root Cause**: Calling `updateRingtoneSettings(...)` and `updateVoiceWallpaper(...)` in rapid succession launched two unsynchronized `viewModelScope` coroutines that concurrently read stale `database.heartDao().getProfileDirect()` snapshots, causing the second coroutine to overwrite the first coroutine's ringtone changes. Additionally, `CallLobbyCard` and `DiscordVideoCallStage` controls could clip on compact `320x470dp` mobile viewports.
 - **Fix Applied**: Added `profileUpdateMutex: Mutex` around `LoversProfile` preference updates in `HeartViewModel`, added `verticalScroll` to `CallLobbyCard`, and sized `DiscordVideoCallStage` HUD/dock buttons responsively (`30.dp` / `40.dp`).
 - **Verification**: Verified in `ComprehensiveFiveCasePerFunctionTest` (`prof_05`) and `ComposeUiFlowsTest`.
+
+---
+
+### BUG-16 — Missing `MediaProjectionService` Declaration & Picture-in-Picture Config in `AndroidManifest.xml`
+- **Severity**: High (Runtime Screen-Share Foreground Service & PiP Stability)
+- **Affected Files**: `/app/src/main/AndroidManifest.xml`
+- **Root Cause**: `DiscordCallController` invokes `MediaProjectionService.startCallForeground(...)`, which requires `<service android:name=".call.MediaProjectionService" android:foregroundServiceType="mediaProjection|camera|microphone" />` to be registered in `AndroidManifest.xml`. Additionally, `MainActivity` lacked `android:supportsPictureInPicture="true"` and `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`, which prevents Activity recreation when transitioning into system PiP during an active video call.
+- **Fix Applied**: Registered `.call.MediaProjectionService` with `mediaProjection|camera|microphone` foreground service types and added `supportsPictureInPicture="true"` + PiP `configChanges` flags to `MainActivity`.
+- **Verification**: Verified via `testDebugUnitTest` and `compile_applet` (`assembleDebug`).

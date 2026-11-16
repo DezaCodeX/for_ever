@@ -249,7 +249,7 @@ private fun CallLobbyCard(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(12.dp),
+            .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -258,16 +258,16 @@ private fun CallLobbyCard(
                 .widthIn(max = 560.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
             border = BorderStroke(1.dp, Color(0xFFF3E8FF)),
-            shape = RoundedCornerShape(24.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(40.dp)
                         .background(Color(0xFFF5F3FF), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -275,92 +275,95 @@ private fun CallLobbyCard(
                         imageVector = if (callType == "VOICE") Icons.Default.Phone else Icons.Default.Videocam,
                         contentDescription = "Call icon",
                         tint = Color(0xFF7E22CE),
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = "Couples Private Calling Booth",
-                    fontSize = 17.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
                     color = Color(0xFF5B21B6),
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Discord-grade multi-stream WebRTC calls with simultaneous webcam & screen sharing, real-time VAD active speaker focus, simulcast quality control, and PiP.",
-                    fontSize = 11.sp,
+                    text = "Multi-stream WebRTC calls with simultaneous webcam & screen sharing, VAD active speaker focus, simulcast & PiP.",
+                    fontSize = 10.sp,
                     color = Color(0xFF6B21A8).copy(alpha = 0.8f),
-                    lineHeight = 15.sp,
-                    maxLines = 3,
+                    lineHeight = 13.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Surface(
                     color = Color(0xFFF5F3FF),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = "Signaling: ${signalingState.label}",
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF7E22CE),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = onVoiceCall,
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(44.dp)
                             .testTag("btn_start_voice_call"),
-                        shape = RoundedCornerShape(16.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E22CE))
                     ) {
-                        Icon(Icons.Default.Phone, "Voice Call", tint = Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Voice Call", fontWeight = FontWeight.Bold, color = Color.White)
+                        Icon(Icons.Default.Phone, "Voice Call", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Voice Call", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                     }
 
                     Button(
                         onClick = onVideoCall,
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(44.dp)
                             .testTag("btn_start_video_call"),
-                        shape = RoundedCornerShape(16.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA))
                     ) {
-                        Icon(Icons.Default.Videocam, "Video Call", tint = Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Video Call", fontWeight = FontWeight.Bold, color = Color.White)
+                        Icon(Icons.Default.Videocam, "Video Call", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Video Call", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
                     onClick = onSimulateIncoming,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .minimumInteractiveComponentSize()
+                        .height(38.dp)
                         .testTag("btn_simulate_incoming_call"),
-                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Color(0xFFC084FC))
                 ) {
-                    Icon(Icons.Default.NotificationsActive, contentDescription = "Simulate Incoming Call", tint = Color(0xFF7E22CE))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Simulate Lover Calling You", color = Color(0xFF7E22CE), fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.NotificationsActive, contentDescription = "Simulate Incoming Call", tint = Color(0xFF7E22CE), modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Simulate Lover Calling You", fontSize = 11.sp, color = Color(0xFF7E22CE), fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
@@ -704,7 +707,7 @@ private fun DiscordVideoCallStage(
             }
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Grid / Focus toggle
@@ -716,14 +719,14 @@ private fun DiscordVideoCallStage(
                         )
                     },
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(26.dp)
                         .testTag("btn_toggle_layout")
                 ) {
                     Icon(
                         imageVector = if (state.layoutMode == CallLayoutMode.GRID) Icons.Default.ViewSidebar else Icons.Default.GridView,
                         contentDescription = "Toggle Grid or Focus View",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
@@ -751,28 +754,28 @@ private fun DiscordVideoCallStage(
                 IconButton(
                     onClick = onToggleHideNonVideo,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(26.dp)
                         .testTag("btn_toggle_non_video")
                 ) {
                     Icon(
                         imageVector = if (state.hideNonVideoParticipants) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = "Toggle non-video participants",
                         tint = if (state.hideNonVideoParticipants) Color(0xFFFBBF24) else Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
                 IconButton(
                     onClick = onShowParticipants,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(26.dp)
                         .testTag("btn_participants_list")
                 ) {
                     Icon(
                         imageVector = Icons.Default.People,
                         contentDescription = "View participants",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
@@ -780,14 +783,14 @@ private fun DiscordVideoCallStage(
                     IconButton(
                         onClick = onEnterPip,
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(26.dp)
                             .testTag("btn_enter_pip")
                     ) {
                         Icon(
                             imageVector = Icons.Default.PictureInPictureAlt,
                             contentDescription = "Picture in Picture",
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
@@ -795,14 +798,14 @@ private fun DiscordVideoCallStage(
                 IconButton(
                     onClick = onMinimize,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(26.dp)
                         .testTag("btn_minimize_call")
                 ) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Minimize Call",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

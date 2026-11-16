@@ -51,6 +51,11 @@
             android:foregroundServiceType="mediaProjection|camera|microphone" />
 
         <service
+            android:name=".call.MediaProjectionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|camera|microphone" />
+
+        <service
             android:name=".notifications.HeartSyncMessagingService"
             android:exported="false">
             <intent-filter>
@@ -62,6 +67,8 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:supportsPictureInPicture="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:theme="@style/Theme.MyApplication"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
